@@ -18,9 +18,13 @@ typedef enum {
     left,
     up,
     down,
-    stop,
 }Dir;
 
+typedef struct {
+    Vector2 pos;
+    Dir current_dir;
+    Dir wantd_dir;
+}Pacman;
 
 typedef enum {
     empty = 0,
@@ -50,9 +54,9 @@ int map[36][28] = {
     {0,0,0,0,0,3,1,3,3,0,0,0,0,0,0,0,0,0,0,3,3,1,3,0,0,0,0,0},
     {0,0,0,0,0,3,1,3,3,0,3,3,3,0,0,3,3,3,0,3,3,1,3,0,0,0,0,0},
     {3,3,3,3,3,3,1,3,3,0,3,0,0,0,0,0,0,3,0,3,3,1,3,3,3,3,3,3},
-    {0,0,0,0,0,0,1,0,0,0,3,0,0,0,0,0,0,3,0,0,0,1,0,0,0,0,0,0},
+    {8,0,0,0,0,0,1,0,0,0,3,0,0,0,0,0,0,3,0,0,0,1,0,0,0,0,0,9},
     {3,3,3,3,3,3,1,3,3,0,3,0,0,0,0,0,0,3,0,3,3,1,3,3,3,3,3,3},
-    {9,0,0,0,0,3,1,3,3,0,3,3,3,3,3,3,3,3,0,3,3,1,3,0,0,0,0,8},
+    {0,0,0,0,0,3,1,3,3,0,3,3,3,3,3,3,3,3,0,3,3,1,3,0,0,0,0,0},
     {0,0,0,0,0,3,1,3,3,0,0,0,0,0,0,0,0,0,0,3,3,1,3,0,0,0,0,0},
     {0,0,0,0,0,3,1,3,3,0,3,3,3,3,3,3,3,3,0,3,3,1,3,0,0,0,0,0},
     {3,3,3,3,3,3,1,3,3,0,3,3,3,3,3,3,3,3,0,3,3,1,3,3,3,3,3,3},
@@ -99,15 +103,16 @@ void draw_grid() {
         for (int col = 0; col<cols; ++col) {
             int x = col * cell_width;
             int y = row * cell_height;
-            DrawRectangleLines(x, y, cell_width, cell_height, PINK);
+            DrawRectangleLines(x, y, cell_width, cell_height, LIME);
         }
     }
 }
 
-bool wanted_dir_check(int player_x_cell, int player_y_cell, Dir wanted_dir) {
+
+bool pacman_wanted_dir_check(int player_x_cell, int player_y_cell, Dir pacman_wanted_dir) {
     bool can_move = false;
 
-    switch (wanted_dir) {
+    switch (pacman_wanted_dir) {
         case left:{
                       if (map[player_y_cell][player_x_cell-1] !=3) can_move = true;
                   }break;
@@ -129,37 +134,45 @@ int main() {
     InitWindow(screen_width, screen_height, "pacman");
     SetTargetFPS(fps);
 
+    Pacman pacman  = {0};
     float pacman_x = 14 * cell_width;
     float pacman_y = 26 * cell_height;
     int pacman_x_cell = pacman_x/cell_width;
     int pacman_y_cell = pacman_y/cell_height;
-    Dir wanted_dir = right;
-    Dir curr_dir   = right;
+    Dir pacman_wanted_dir = right;
+    Dir pacman_curr_dir   = right;
+
+    float red_ghost_x = 14 * cell_width;
+    float red_ghost_y = 14 * cell_height;
+    int red_ghost_x_cell = red_ghost_x/cell_width;
+    int red_ghost_y_cell = red_ghost_y/cell_height;
+    Dir red_ghost_dir = right;
+    Dir red_ghost_curr_dir = right;
 
     float pacman_speed = 100;
     while (!WindowShouldClose()) {
         BeginDrawing();
         ClearBackground(BLACK);
         draw_map();
-        draw_grid();
+        //draw_grid();
 
         float pacman_dp = pacman_speed * GetFrameTime();
 
         if (IsKeyDown(KEY_LEFT)) {
-            wanted_dir = left;
+            pacman_wanted_dir = left;
         }
         else if (IsKeyDown(KEY_RIGHT)) {
-            wanted_dir = right;
+            pacman_wanted_dir = right;
         }
         else if (IsKeyDown(KEY_UP)) {
-            wanted_dir = up;
+            pacman_wanted_dir = up;
         }
         else if (IsKeyDown(KEY_DOWN)) {
-            wanted_dir = down;
+            pacman_wanted_dir = down;
         }
 
 
-        if (curr_dir == left ) {
+        if (pacman_curr_dir == left ) {
             int new_x= (pacman_x_cell * cell_width) - cell_width;
             int new_x_cell = new_x/cell_width;
             //DrawRectangle(new_x, pacman_y, cell_width, cell_height, GREEN);
@@ -167,8 +180,8 @@ int main() {
                 if (pacman_x < new_x) {
                     pacman_x = new_x;
                     pacman_x_cell -=1;
-                    if (wanted_dir_check(new_x_cell, pacman_y_cell, wanted_dir)) {
-                        curr_dir = wanted_dir;
+                    if (pacman_wanted_dir_check(new_x_cell, pacman_y_cell, pacman_wanted_dir)) {
+                        pacman_curr_dir = pacman_wanted_dir;
                     }
                     if (map[pacman_y_cell][pacman_x_cell] == 1 || map[pacman_y_cell][pacman_x_cell] == 2) {
                         map[pacman_y_cell][pacman_x_cell] = 0;
@@ -178,21 +191,27 @@ int main() {
                     pacman_x  -= pacman_dp;
                 }
             }
+            else if (map[pacman_y_cell][pacman_x_cell] == 8) {
+                pacman_x_cell = 27;
+                pacman_y_cell = 17;
+                pacman_x = pacman_x_cell * cell_width;
+                pacman_y = pacman_y_cell *cell_height;
+            }
             else {
-                curr_dir = wanted_dir;
+                pacman_curr_dir = pacman_wanted_dir;
             }
 
         }
-        else if (curr_dir == right) {
+        else if (pacman_curr_dir == right) {
             int new_x = ((pacman_x_cell * cell_width) + cell_width);
             int new_x_cell = new_x/cell_width;
-            //DrawRectangle(new_x, pacman_y, cell_width, cell_height, GREEN);
+            printf("%d\n", (int)pacman_x/cell_width);
             if (map[pacman_y_cell][new_x_cell] != 3) {
                 if (pacman_x >new_x ) {
                     pacman_x = new_x;
                     pacman_x_cell +=1;
-                    if (wanted_dir_check(new_x_cell, pacman_y_cell, wanted_dir)) {
-                        curr_dir = wanted_dir;
+                    if (pacman_wanted_dir_check(new_x_cell, pacman_y_cell, pacman_wanted_dir)) {
+                        pacman_curr_dir = pacman_wanted_dir;
                     }
                     if (map[pacman_y_cell][pacman_x_cell] == 1 || map[pacman_y_cell][pacman_x_cell] == 2) {
                         map[pacman_y_cell][pacman_x_cell] = 0;
@@ -201,12 +220,18 @@ int main() {
                     pacman_x += pacman_dp;
                 }
             }
+            else if (map[pacman_y_cell][pacman_x_cell] == 9) {
+                pacman_x_cell = 0;
+                pacman_y_cell = 17;
+                pacman_x = pacman_x_cell * cell_width;
+                pacman_y = pacman_y_cell *cell_height;
+            }
             else {
-                curr_dir = wanted_dir;
+                pacman_curr_dir = pacman_wanted_dir;
 
             }
         }
-        else if (curr_dir == up) {
+        else if (pacman_curr_dir == up) {
             int new_y =((pacman_y_cell * cell_height) - cell_height) ;
             int new_y_cell = new_y/cell_height;
             // DrawRectangle(pacman_x, new_y, cell_width, cell_height, GREEN);
@@ -214,8 +239,8 @@ int main() {
                 if (pacman_y < new_y) {
                     pacman_y = new_y;
                     pacman_y_cell -=1;
-                    if (wanted_dir_check(pacman_x_cell, new_y_cell, wanted_dir)) {
-                        curr_dir = wanted_dir;
+                    if (pacman_wanted_dir_check(pacman_x_cell, new_y_cell, pacman_wanted_dir)) {
+                        pacman_curr_dir = pacman_wanted_dir;
                     }
                     if (map[pacman_y_cell][pacman_x_cell] == 1 || map[pacman_y_cell][pacman_x_cell] == 2) {
                         map[pacman_y_cell][pacman_x_cell] = 0;
@@ -226,10 +251,10 @@ int main() {
                 }
             }
             else {
-                curr_dir = wanted_dir;
+                pacman_curr_dir = pacman_wanted_dir;
             }
         }
-        else if (curr_dir == down) {
+        else if (pacman_curr_dir == down) {
             int new_y =((pacman_y_cell * cell_height) + cell_height) ;
             int new_y_cell = new_y/cell_height;
             //DrawRectangle(pacman_x, new_y, cell_width, cell_height, GREEN);
@@ -237,8 +262,8 @@ int main() {
                 if (pacman_y > new_y) {
                     pacman_y = new_y;
                     pacman_y_cell +=1;
-                    if (wanted_dir_check(pacman_x_cell, new_y_cell, wanted_dir)) {
-                        curr_dir = wanted_dir;
+                    if (pacman_wanted_dir_check(pacman_x_cell, new_y_cell, pacman_wanted_dir)) {
+                        pacman_curr_dir = pacman_wanted_dir;
                     }
                     if (map[pacman_y_cell][pacman_x_cell] == 1 || map[pacman_y_cell][pacman_x_cell] == 2) {
                         map[pacman_y_cell][pacman_x_cell] = 0;
@@ -249,7 +274,7 @@ int main() {
                 }
             }
             else {
-                curr_dir = wanted_dir;
+                pacman_curr_dir = pacman_wanted_dir;
             }
         }
 
@@ -258,4 +283,6 @@ int main() {
 
         EndDrawing();
     }
+
+    CloseWindow();
 }

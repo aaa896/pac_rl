@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "raylib.h"
+#include "math.h"
 #include <stdbool.h>
 
 
@@ -13,6 +14,12 @@ const int cell_width = screen_width /cols;
 const int cell_height = screen_height /rows;
 float fps = 60;
 
+bool draw_next_cell = false;
+
+typedef struct {
+    int x;
+    int y;
+}V2int;
 
 typedef enum {
     right,
@@ -21,6 +28,22 @@ typedef enum {
     down,
 }Dir;
 
+/*
+    Scatter for 7 seconds, then Chase for 20 seconds.
+    Scatter for 7 seconds, then Chase for 20 seconds.
+    Scatter for 5 seconds, then Chase for 20 seconds.
+    Scatter for 5 seconds, then switch to Chase mode permanently.
+*/
+typedef enum {
+    chase,
+    scatter,
+    scared,
+}Ghost_Mode;
+
+V2int rg_scatter_cell = {
+    .x = 25,
+    .y = 0,
+};
 
 typedef enum {
     empty = 0,
@@ -32,10 +55,6 @@ typedef enum {
 }map_key;
 
 
-typedef struct {
-    int x;
-    int y;
-}V2int;
 
 
 int map[36][28] = {
@@ -54,7 +73,7 @@ int map[36][28] = {
     {3,3,3,3,3,3,1,3,3,3,3,3,0,3,3,0,3,3,3,3,3,1,3,3,3,3,3,3},
     {0,0,0,0,0,3,1,3,3,3,3,3,0,3,3,0,3,3,3,3,3,1,3,0,0,0,0,0},
     {0,0,0,0,0,3,1,3,3,0,0,0,0,0,0,0,0,0,0,3,3,1,3,0,0,0,0,0},
-    {0,0,0,0,0,3,1,3,3,0,3,3,3,0,0,3,3,3,0,3,3,1,3,0,0,0,0,0},
+    {0,0,0,0,0,3,1,3,3,0,3,3,3,3,3,3,3,3,0,3,3,1,3,0,0,0,0,0},
     {3,3,3,3,3,3,1,3,3,0,3,0,0,0,0,0,0,3,0,3,3,1,3,3,3,3,3,3},
     {8,0,0,0,0,0,1,0,0,0,3,0,0,0,0,0,0,3,0,0,0,1,0,0,0,0,0,9},
     {3,3,3,3,3,3,1,3,3,0,3,0,0,0,0,0,0,3,0,3,3,1,3,3,3,3,3,3},
@@ -132,57 +151,107 @@ bool wanted_dir_check(int player_x_cell, int player_y_cell, Dir pacman_wanted_di
 }
 
 
-void update_rg_wanted_dir(Dir rg_curr_dir, Dir *rg_wanted_dir, V2int rg_cell, V2int target_cell) {
+float get_target_cell_dist(V2int cell, V2int target_cell) {
+    float x = target_cell.x - cell.x;
+    float y = target_cell.y - cell.y;
+    float dist = sqrt((x * x) + (y * y));
+    return dist;
+}
+
+
+void update_rg_wanted_dir_chase(Dir curr_dir, Dir *wanted_dir, V2int cell, V2int target_cell) {
     
-    Dir x_dir = left;
-    Dir y_dir = up;
+    V2int up_cell = {
+        .x = cell.x,
+        .y = cell.y -1,
+    };
+    V2int down_cell = {
+        .x = cell.x,
+        .y = cell.y +1,
+    };
+    V2int right_cell = {
+        .x = cell.x +1,
+        .y = cell.y,
+    };
+    V2int left_cell = {
+        .x = cell.x -1,
+        .y = cell.y ,
+    };
 
-    int x_dest = rg_cell.x - target_cell.x;
-    if (x_dest <0)  {
-        x_dest *= -1;
-        x_dir = right;
+    bool intersection     = false;
+    bool left_available   = false;
+    bool right_available  = false;
+    bool up_available     = false;
+    bool down_available   = false;
+
+    int  paths = 0;
+    if (wanted_dir_check(right_cell.x, right_cell.y, *wanted_dir) ) {
+        right_available = true;
+        ++paths;
+    }
+    if (wanted_dir_check(left_cell.x, left_cell.y, *wanted_dir) ) {
+        left_available = true;
+        ++paths;
+    }
+    if (wanted_dir_check(down_cell.x , down_cell.y, *wanted_dir) ) {
+        down_available = true;
+        ++paths;
+    }
+    if (wanted_dir_check(up_cell.x , up_cell.y, *wanted_dir) ) {
+        up_available = true;
+        ++paths;
+    }
+    if(paths>= 3) intersection = true;
+
+    bool wall_hit = false;
+    if (curr_dir == right) {
+        if (!right_available) {
+            wall_hit = true;
+        }
+    }
+    else if (curr_dir == left) {
+        if (!left_available) {
+            wall_hit = true;
+        }
+    }
+    else if (curr_dir == down) {
+        if (!down_available) {
+            wall_hit = true;
+        }
+    }
+    else if (curr_dir == up) {
+        if (!up_available) {
+            wall_hit = true;
+        }
     }
 
-    int y_dest = rg_cell.y - target_cell.y;
-    if (y_dest <0) {
-        y_dest *= -1;
-        y_dir = down;
-    }
 
-    if (x_dest < y_dest) {
-        *rg_wanted_dir = x_dir;
-    }
-    else {
-        *rg_wanted_dir = y_dir;
-    }
-    
-    bool valid_dir_found = false;
+    float unavailable = rows * cols;
+    if (wall_hit || intersection) {
+        float left_cell_dist  =  get_target_cell_dist(left_cell, target_cell);
+        float right_cell_dist =  get_target_cell_dist(right_cell, target_cell);
+        float down_cell_dist  =  get_target_cell_dist(down_cell, target_cell);
+        float up_cell_dist    =  get_target_cell_dist(up_cell, target_cell);
 
-    while (!valid_dir_found) {
-        if (*rg_wanted_dir == right) {
-            if (left == rg_curr_dir) {
-                *rg_wanted_dir = left;
-            }
-        }
-        else if (*rg_wanted_dir == left) {
-            if (right == rg_curr_dir) {
-                *rg_wanted_dir = right;
-            }
-        }
-        else if (*rg_wanted_dir == down) {
-            if (up == rg_curr_dir) {
-                *rg_wanted_dir = up;
-            }
-        }
-        else if (*rg_wanted_dir == up) {
-            if (down == rg_curr_dir) {
-                *rg_wanted_dir = down;
-            }
+        if (curr_dir == left)        right_cell_dist = unavailable; 
+        else if (curr_dir == right)  left_cell_dist = unavailable; 
+        else if (curr_dir == up)     down_cell_dist = unavailable; 
+        else if (curr_dir == down)   up_cell_dist = unavailable; 
 
-        }
-        DrawRectangle(rg_cell.x * cell_width, rg_cell.y * cell_height, cell_width, cell_height, GREEN);
-        if (!valid_dir_found) *rg_wanted_dir = rand()%4;
-        valid_dir_found = true;
+        if (!left_available)   left_cell_dist  = unavailable;
+        if (!right_available)  right_cell_dist = unavailable;
+        if (!up_available)     up_cell_dist    = unavailable;
+        if (!down_available)   down_cell_dist  = unavailable;
+
+        float smallest_dist = left_cell_dist;
+        if (right_cell_dist < smallest_dist) smallest_dist = right_cell_dist;
+        if (down_cell_dist < smallest_dist)  smallest_dist = down_cell_dist;
+        if (up_cell_dist < smallest_dist)    smallest_dist = up_cell_dist;
+
+        if (smallest_dist == left_cell_dist)  *wanted_dir = left;
+        if (smallest_dist == right_cell_dist) *wanted_dir = right;
+        if (smallest_dist == down_cell_dist)  *wanted_dir = down;
+        if (smallest_dist == up_cell_dist)    *wanted_dir = up;
     }
 }
 
@@ -194,6 +263,7 @@ void move_player(Dir *curr_dir, Dir *wanted_dir, Vector2 *pos, V2int *cell, floa
 
         int new_x= (cell->x * cell_width) - cell_width;
         int new_x_cell = new_x/cell_width;
+        if (draw_next_cell) DrawRectangle(new_x, pos->y, cell_width, cell_height, GRAY);
         if (map[cell->y][new_x_cell] != 3) {
             if (pos->x < new_x) {
                 pos->x = new_x;
@@ -220,6 +290,7 @@ void move_player(Dir *curr_dir, Dir *wanted_dir, Vector2 *pos, V2int *cell, floa
     else if (*curr_dir == right) {
         int new_x = ((cell->x * cell_width) + cell_width);
         int new_x_cell = new_x/cell_width;
+        if (draw_next_cell) DrawRectangle(new_x, pos->y, cell_width, cell_height, GRAY);
         if (map[cell->y][new_x_cell] != 3) {
             if (pos->x >new_x ) {
                 pos->x = new_x;
@@ -245,6 +316,7 @@ void move_player(Dir *curr_dir, Dir *wanted_dir, Vector2 *pos, V2int *cell, floa
     else if (*curr_dir == up) {
         int new_y =((cell->y * cell_height) - cell_height) ;
         int new_y_cell = new_y/cell_height;
+        if (draw_next_cell) DrawRectangle(pos->x, new_y, cell_width, cell_height, GRAY);
         if (map[new_y_cell][cell->x] != 3) {
             if (pos->y < new_y) {
                 pos->y = new_y;
@@ -264,6 +336,7 @@ void move_player(Dir *curr_dir, Dir *wanted_dir, Vector2 *pos, V2int *cell, floa
     else if (*curr_dir == down) {
         int new_y =((cell->y * cell_height) + cell_height) ;
         int new_y_cell = new_y/cell_height;
+        if (draw_next_cell) DrawRectangle(pos->x, new_y, cell_width, cell_height, GRAY);
         if (map[new_y_cell][cell->x] != 3) {
             if (pos->y > new_y) {
                 pos->y = new_y;
@@ -282,7 +355,6 @@ void move_player(Dir *curr_dir, Dir *wanted_dir, Vector2 *pos, V2int *cell, floa
     }
 
 }
-
 
 
 int main() {
@@ -311,13 +383,13 @@ int main() {
     rg_cell.y = rg_pos.y/cell_height;
     Dir rg_wanted_dir = right;
     Dir rg_curr_dir   = right;
-    bool rg_eatable = false;
+    Ghost_Mode rg_mode = scatter;
 
     while (!WindowShouldClose()) {
         BeginDrawing();
         ClearBackground(BLACK);
         draw_map();
-        //draw_grid();
+        draw_grid();
 
         float pacman_dp = pacman_speed * GetFrameTime();
         float rg_dp     = ghost_speed * GetFrameTime();
@@ -335,11 +407,20 @@ int main() {
             pacman_wanted_dir = down;
         }
 
-        if (map[pacman_cell.y][pacman_cell.x] == 1 || map[pacman_cell.y][pacman_cell.x] == 2) {
+        if (map[pacman_cell.y][pacman_cell.x] == 1 ) {
             map[pacman_cell.y][pacman_cell.x] = 0;
         }
+        else if ( map[pacman_cell.y][pacman_cell.x] == 2 ) {
+        }
 
-        update_rg_wanted_dir(rg_curr_dir, &rg_wanted_dir, rg_cell, pacman_cell);
+        if (rg_mode == chase) {
+            update_rg_wanted_dir_chase(rg_curr_dir, &rg_wanted_dir, rg_cell, pacman_cell);
+        }
+        else if (rg_mode == scatter) {
+            update_rg_wanted_dir_chase(rg_curr_dir, &rg_wanted_dir, rg_cell, rg_scatter_cell);
+        }
+        else if (rg_mode == scatter) {
+        }
         
         move_player(&pacman_curr_dir, &pacman_wanted_dir, &pacman_pos, &pacman_cell, pacman_dp);
         move_player(&rg_curr_dir, &rg_wanted_dir, &rg_pos, &rg_cell, rg_dp);

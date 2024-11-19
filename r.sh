@@ -1,2 +1,2 @@
-clang -Wall -Wextra -g main.c -lraylib -o a && ./a
+clang -Wall -Wextra -g main.c -lm -lraylib -o a && ./a
 read -p "..."

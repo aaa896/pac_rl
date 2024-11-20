@@ -390,6 +390,8 @@ int main() {
     float scared_speed = 50;
     float eaten_speed = 100;
 
+    Ghost_Mode chase_scatter_toggle = scatter;
+
     Vector2 rg_pos = {0};
     rg_pos.x = 14 * cell_width;
     rg_pos.y = 14 * cell_height;
@@ -398,9 +400,7 @@ int main() {
     rg_cell.y = rg_pos.y/cell_height;
     Dir rg_wanted_dir = right;
     Dir rg_curr_dir   = right;
-
     Ghost_Mode rg_mode = scatter;
-    Ghost_Mode all_ghost_mode = scatter;
     Color rg_color = RED;
 
     float scatter_time = 7;
@@ -415,8 +415,10 @@ int main() {
         .len = chase_time,
     };
 
-    int eat_timer_len = 8;
     Timer eat_timer = {0};
+    eat_timer.len = 8;
+
+    Timer ghost_release_timer;
     while (!WindowShouldClose()) {
         BeginDrawing();
         ClearBackground(BLACK);
@@ -425,37 +427,30 @@ int main() {
         float current_time= GetTime();
         float frame_time= GetFrameTime();
 
-        if ((eat_timer.start_time + eat_timer.len) > current_time) {
-            all_ghost_mode = scared;
-        }
-        else {
-            if (all_ghost_mode == scared)  {
+        if ((eat_timer.start_time + eat_timer.len) < current_time) {
+            if (rg_mode == scared)  {
                 flip_dir(&rg_curr_dir, &rg_wanted_dir);
-                all_ghost_mode = chase;
+                rg_mode = chase;
                 chase_timer.start_time = current_time;
             }
-            else if (all_ghost_mode == scatter) {
+
+            if (chase_scatter_toggle == scatter) {
                 if ((scatter_timer.start_time + scatter_timer.len) < current_time) {
-                    all_ghost_mode = chase;
+                    chase_scatter_toggle = chase;
                     chase_timer.start_time = current_time;
                 }
             }
-            else if(all_ghost_mode == chase) {
+            else if(chase_scatter_toggle == chase) {
                 if ((chase_timer.start_time + chase_timer.len) < current_time) {
-                    all_ghost_mode = scatter;
+                    chase_scatter_toggle = scatter;
                     scatter_timer.start_time = current_time;
                 }
             }
         }
 
-        if (rg_mode == eaten) {
-        }
-        else if (rg_mode == jail_down) {
-        }
-        else if (rg_mode == jail_up) {
-        }
-        else {
-            rg_mode = all_ghost_mode;
+
+        if (rg_mode == chase || rg_mode == scatter) {
+            rg_mode = chase_scatter_toggle;
         }
 
         float pacman_dp = pacman_speed * frame_time;
@@ -489,14 +484,13 @@ int main() {
         else if ( map[pacman_cell.y][pacman_cell.x] == 2 ) {
             flip_dir(&rg_curr_dir, &rg_wanted_dir);
             map[pacman_cell.y][pacman_cell.x] = 0;
-            eat_timer.len = eat_timer_len;
             eat_timer.start_time = current_time;
-            all_ghost_mode = scared;
+            rg_mode = scared;
         }
 
         bool collision = ( pacman_cell.x == rg_cell.x && pacman_cell.y == rg_cell.y);
         if (collision) {
-            if (all_ghost_mode == scared) {
+            if (rg_mode == scared) {
                 rg_mode = eaten;
             }            
             else {

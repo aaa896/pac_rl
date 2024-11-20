@@ -34,7 +34,8 @@ typedef enum {
     scatter,
     scared,
     eaten,
-    jail_trans,
+    jail_down,
+    jail_up,
 }Ghost_Mode;
 
 V2int rg_scatter_cell = {
@@ -449,7 +450,9 @@ int main() {
 
         if (rg_mode == eaten) {
         }
-        else if (rg_mode == jail_trans) {
+        else if (rg_mode == jail_down) {
+        }
+        else if (rg_mode == jail_up) {
         }
         else {
             rg_mode = all_ghost_mode;
@@ -463,7 +466,7 @@ int main() {
         else if (rg_mode == chase || rg_mode == scatter) {
             rg_dp  = chase_speed * frame_time ; 
         }
-        else if (rg_mode == eaten) {
+        else if (rg_mode == eaten || rg_mode == jail_down || rg_mode == jail_up) {
             rg_dp = eaten_speed * frame_time;
         }
 
@@ -488,7 +491,17 @@ int main() {
             map[pacman_cell.y][pacman_cell.x] = 0;
             eat_timer.len = eat_timer_len;
             eat_timer.start_time = current_time;
-            rg_mode = scared;
+            all_ghost_mode = scared;
+        }
+
+        bool collision = ( pacman_cell.x == rg_cell.x && pacman_cell.y == rg_cell.y);
+        if (collision) {
+            if (all_ghost_mode == scared) {
+                rg_mode = eaten;
+            }            
+            else {
+                //RESET and  lose life
+            }
         }
 
         if (rg_mode == chase) {
@@ -513,19 +526,28 @@ int main() {
             bool collision = ( rg_cell.x == jail_cell.x && jail_cell.y == rg_cell.y);
             if (collision) {
                 printf("Collide\n");
-                rg_mode = jail_trans;
+                rg_mode = jail_down;
             }
         }
         
-        bool collision = ( pacman_cell.x == rg_cell.x && pacman_cell.y == rg_cell.y);
-        if (collision) {
-            if (all_ghost_mode == scared) {
-                rg_mode = eaten;
-            }            
+        if (rg_mode == jail_down) {
+            rg_pos.y += rg_dp;
+            if (rg_pos.y > ((jail_cell.y +3) * cell_height)) {
+                rg_mode = jail_up;
+            }
+        }
+        else if (rg_mode == jail_up) {
+            rg_pos.y -=  rg_dp;
+            if (rg_pos.y < (jail_cell.y * cell_height)) {
+                rg_pos.y = rg_cell.y * cell_height;
+                rg_mode = chase;
+            }
+        }
+        else {
+            move_player(&rg_curr_dir, &rg_wanted_dir, &rg_pos, &rg_cell, rg_dp);
         }
 
         move_player(&pacman_curr_dir, &pacman_wanted_dir, &pacman_pos, &pacman_cell, pacman_dp);
-        move_player(&rg_curr_dir, &rg_wanted_dir, &rg_pos, &rg_cell, rg_dp);
 
         DrawRectangle(pacman_pos.x, pacman_pos.y, cell_width, cell_height, YELLOW);
         DrawRectangle(rg_pos.x, rg_pos.y, cell_width, cell_height, rg_color);

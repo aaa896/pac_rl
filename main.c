@@ -14,7 +14,7 @@ const int cell_width = screen_width /cols;
 const int cell_height = screen_height /rows;
 float fps = 60;
 
-bool draw_next_cell = false;
+bool draw_next_cell = true;
 
 typedef struct {
     int x;
@@ -28,22 +28,28 @@ typedef enum {
     down,
 }Dir;
 
-/*
-    Scatter for 7 seconds, then Chase for 20 seconds.
-    Scatter for 7 seconds, then Chase for 20 seconds.
-    Scatter for 5 seconds, then Chase for 20 seconds.
-    Scatter for 5 seconds, then switch to Chase mode permanently.
-*/
+
 typedef enum {
     chase,
     scatter,
     scared,
+    eaten,
 }Ghost_Mode;
 
 V2int rg_scatter_cell = {
     .x = 25,
     .y = 0,
 };
+
+V2int jail_cell = {
+    .x = 15,
+    .y = 14,
+};
+
+typedef struct {
+    float start_time;
+    float len;
+}Timer;
 
 typedef enum {
     empty = 0,
@@ -53,8 +59,6 @@ typedef enum {
     left_teleport = 8,
     right_teleport = 9,
 }map_key;
-
-
 
 
 int map[36][28] = {
@@ -127,6 +131,14 @@ void draw_grid() {
             DrawRectangleLines(x, y, cell_width, cell_height, LIME);
         }
     }
+}
+
+
+void flip_dir(Dir *curr_dir, Dir *wanted_dir) {
+    if (*curr_dir == right)      *wanted_dir = left;
+    else if (*curr_dir == left)  *wanted_dir = right;
+    else if (*curr_dir == up)    *wanted_dir = down;
+    else if (*curr_dir == down)  *wanted_dir = up;
 }
 
 
@@ -234,9 +246,9 @@ void update_rg_wanted_dir_chase(Dir curr_dir, Dir *wanted_dir, V2int cell, V2int
         float up_cell_dist    =  get_target_cell_dist(up_cell, target_cell);
 
         if (curr_dir == left)        right_cell_dist = unavailable; 
-        else if (curr_dir == right)  left_cell_dist = unavailable; 
-        else if (curr_dir == up)     down_cell_dist = unavailable; 
-        else if (curr_dir == down)   up_cell_dist = unavailable; 
+        else if (curr_dir == right)  left_cell_dist  = unavailable; 
+        else if (curr_dir == up)     down_cell_dist  = unavailable; 
+        else if (curr_dir == down)   up_cell_dist    = unavailable; 
 
         if (!left_available)   left_cell_dist  = unavailable;
         if (!right_available)  right_cell_dist = unavailable;
@@ -372,8 +384,9 @@ int main() {
     float pacman_speed = 100;
 
 
-    float ghost_speed = 80;
-    float eatable_speed = 60;
+    float chase_speed = 80;
+    float scared_speed = 50;
+    float eaten_speed = 100;
 
     Vector2 rg_pos = {0};
     rg_pos.x = 14 * cell_width;
@@ -383,16 +396,72 @@ int main() {
     rg_cell.y = rg_pos.y/cell_height;
     Dir rg_wanted_dir = right;
     Dir rg_curr_dir   = right;
-    Ghost_Mode rg_mode = scatter;
 
+    Ghost_Mode rg_mode = scatter;
+    Ghost_Mode all_ghost_mode = scatter;
+    Color rg_color = RED;
+
+    float scatter_time = 7;
+    Timer scatter_timer = {
+        .start_time = GetTime(),
+        .len = scatter_time,
+    };
+
+    float chase_time = 20;
+    Timer chase_timer = {
+        .start_time = 0,
+        .len = chase_time,
+    };
+
+    int eat_timer_len = 8;
+    Timer eat_timer = {0};
     while (!WindowShouldClose()) {
         BeginDrawing();
         ClearBackground(BLACK);
         draw_map();
         draw_grid();
+        float current_time= GetTime();
+        float frame_time= GetFrameTime();
 
-        float pacman_dp = pacman_speed * GetFrameTime();
-        float rg_dp     = ghost_speed * GetFrameTime();
+        if ((eat_timer.start_time + eat_timer.len) > current_time) {
+            all_ghost_mode = scared;
+        }
+        else {
+            if (all_ghost_mode == scared)  {
+                flip_dir(&rg_curr_dir, &rg_wanted_dir);
+                all_ghost_mode = chase;
+                chase_timer.start_time = current_time;
+            }
+            else if (all_ghost_mode == scatter) {
+                if ((scatter_timer.start_time + scatter_timer.len) < current_time) {
+                    all_ghost_mode = chase;
+                    chase_timer.start_time = current_time;
+                }
+            }
+            else if(all_ghost_mode == chase) {
+                if ((chase_timer.start_time + chase_timer.len) < current_time) {
+                    all_ghost_mode = scatter;
+                    scatter_timer.start_time = current_time;
+                }
+            }
+        }
+        if (rg_mode == eaten) {
+        }
+        else {
+            rg_mode = all_ghost_mode;
+        }
+
+        float pacman_dp = pacman_speed * frame_time;
+        float rg_dp = 0;
+        if (rg_mode == scared) {
+            rg_dp  = scared_speed * frame_time ;
+        }
+        else if (rg_mode == chase || rg_mode == scatter) {
+            rg_dp  = chase_speed * frame_time ; 
+        }
+        else if (rg_mode == eaten) {
+            rg_dp = eaten_speed * frame_time;
+        }
 
         if (IsKeyDown(KEY_LEFT)) {
             pacman_wanted_dir = left;
@@ -411,22 +480,42 @@ int main() {
             map[pacman_cell.y][pacman_cell.x] = 0;
         }
         else if ( map[pacman_cell.y][pacman_cell.x] == 2 ) {
+            flip_dir(&rg_curr_dir, &rg_wanted_dir);
+            map[pacman_cell.y][pacman_cell.x] = 0;
+            eat_timer.len = eat_timer_len;
+            eat_timer.start_time = current_time;
+            rg_mode = scared;
         }
 
         if (rg_mode == chase) {
             update_rg_wanted_dir_chase(rg_curr_dir, &rg_wanted_dir, rg_cell, pacman_cell);
+            rg_color = RED;
         }
         else if (rg_mode == scatter) {
             update_rg_wanted_dir_chase(rg_curr_dir, &rg_wanted_dir, rg_cell, rg_scatter_cell);
+            rg_color = RED;
         }
-        else if (rg_mode == scatter) {
+        else if (rg_mode == scared) {
+            V2int rand_target_cell = {
+                .x = rand()%cols,
+                .y = rand()%rows,
+            };
+            update_rg_wanted_dir_chase(rg_curr_dir, &rg_wanted_dir, rg_cell, rand_target_cell);
+            rg_color = BLUE;
         }
         
+        bool collision = ( pacman_cell.x == rg_cell.x && pacman_cell.y == rg_cell.y);
+        if (collision) {
+            if (all_ghost_mode == scared) {
+                rg_mode = eaten;
+            }            
+        }
+
         move_player(&pacman_curr_dir, &pacman_wanted_dir, &pacman_pos, &pacman_cell, pacman_dp);
         move_player(&rg_curr_dir, &rg_wanted_dir, &rg_pos, &rg_cell, rg_dp);
 
         DrawRectangle(pacman_pos.x, pacman_pos.y, cell_width, cell_height, YELLOW);
-        DrawRectangle(rg_pos.x, rg_pos.y, cell_width, cell_height, RED);
+        DrawRectangle(rg_pos.x, rg_pos.y, cell_width, cell_height, rg_color);
 
         EndDrawing();
     }

@@ -34,6 +34,7 @@ typedef enum {
     scatter,
     scared,
     eaten,
+    jail_trans,
 }Ghost_Mode;
 
 V2int rg_scatter_cell = {
@@ -42,7 +43,7 @@ V2int rg_scatter_cell = {
 };
 
 V2int jail_cell = {
-    .x = 15,
+    .x = 13,
     .y = 14,
 };
 
@@ -381,7 +382,7 @@ int main() {
     pacman_cell.y = pacman_pos.y/cell_height;
     Dir pacman_wanted_dir = right;
     Dir pacman_curr_dir   = right;
-    float pacman_speed = 100;
+    float pacman_speed = 300;
 
 
     float chase_speed = 80;
@@ -445,7 +446,10 @@ int main() {
                 }
             }
         }
+
         if (rg_mode == eaten) {
+        }
+        else if (rg_mode == jail_trans) {
         }
         else {
             rg_mode = all_ghost_mode;
@@ -502,6 +506,15 @@ int main() {
             };
             update_rg_wanted_dir_chase(rg_curr_dir, &rg_wanted_dir, rg_cell, rand_target_cell);
             rg_color = BLUE;
+        }
+        else if (rg_mode == eaten) {
+            update_rg_wanted_dir_chase(rg_curr_dir, &rg_wanted_dir, rg_cell, jail_cell);
+
+            bool collision = ( rg_cell.x == jail_cell.x && jail_cell.y == rg_cell.y);
+            if (collision) {
+                printf("Collide\n");
+                rg_mode = jail_trans;
+            }
         }
         
         bool collision = ( pacman_cell.x == rg_cell.x && pacman_cell.y == rg_cell.y);

@@ -15,7 +15,7 @@ const int cell_width = screen_width /cols;
 const int cell_height = screen_height /rows;
 float fps = 60;
 
-bool draw_next_cell = true;
+bool draw_next_cell = false;
 
 typedef struct {
     int x;
@@ -54,6 +54,22 @@ typedef struct {
     float spawn_wait_time;
 }Ghost;
 
+typedef struct {
+    float start_time;
+    float len;
+}Timer;
+
+typedef struct {
+    Texture2D texture;
+    Vector2 origin;
+    Rectangle source;
+    Rectangle dest;
+    int frames;
+    int current_frame;
+    float scale;
+    float rot;
+    Timer timer;
+}Anim;
 
 V2int jail_cell = {
     .x = 13,
@@ -64,10 +80,6 @@ V2int spawn_exit_cell = {
     .x = 13,
     .y = 16,
 };
-typedef struct {
-    float start_time;
-    float len;
-}Timer;
 
 typedef enum {
     empty = 0,
@@ -125,16 +137,16 @@ void draw_map() {
             int x = col * cell_width;
             int y = row * cell_height;
             if (map[row][col] == 0) {
-                DrawRectangle(x, y, cell_width, cell_height, BLACK);
+                DrawRectangleLines(x, y, cell_width, cell_height, BLACK);
             }
             else if (map[row][col] == 3) {
-                DrawRectangle(x, y, cell_width, cell_height, DARKGREEN);
+     //           DrawRectangleLines(x, y, cell_width, cell_height, DARKGREEN);
             }
             else if (map[row][col] == 1) {
-                DrawRectangle(x, y, cell_width, cell_height, BEIGE );
+                DrawRectangle(x + (cell_width * 0.45), y + (cell_height * 0.45), cell_width * 0.15, cell_height * 0.15, BEIGE );
             }
             else if (map[row][col] == 2) {
-                DrawRectangle(x, y, cell_width, cell_height, GOLD);
+                DrawCircle(cell_width/2 + x, cell_width/2 + y, cell_width/3,  BEIGE);
             }
         }
     }
@@ -149,14 +161,6 @@ void draw_grid() {
             DrawRectangleLines(x, y, cell_width, cell_height, DARKPURPLE);
         }
     }
-}
-
-
-void flip_dir(Dir *curr_dir, Dir *wanted_dir) {
-    if (*curr_dir == right)      *wanted_dir = left;
-    else if (*curr_dir == left)  *wanted_dir = right;
-    else if (*curr_dir == up)    *wanted_dir = down;
-    else if (*curr_dir == down)  *wanted_dir = up;
 }
 
 
@@ -178,6 +182,36 @@ bool wanted_dir_check(int player_x_cell, int player_y_cell, Dir pacman_wanted_di
                   }break;
     }
     return can_move;
+}
+
+
+
+void flip_ghost_dir(Ghost *ghost) {
+
+    if (ghost->curr_dir == right)      {
+        if (wanted_dir_check(ghost->cell.x, ghost->cell.y, left)) {
+            ghost->curr_dir = left;
+            ghost->wanted_dir = left;
+        }
+    }
+    else if (ghost->curr_dir == left)      {
+        if (wanted_dir_check(ghost->cell.x, ghost->cell.y, right)) {
+            ghost->curr_dir = right;
+            ghost->wanted_dir = right;
+        }
+    }
+    else if (ghost->curr_dir == up)      {
+        if (wanted_dir_check(ghost->cell.x, ghost->cell.y, down)) {
+            ghost->curr_dir = down;
+            ghost->wanted_dir = down;
+        }
+    }
+    else if (ghost->curr_dir == down)      {
+        if (wanted_dir_check(ghost->cell.x, ghost->cell.y, up)) {
+            ghost->curr_dir = up;
+            ghost->wanted_dir = up;
+        }
+    }
 }
 
 
@@ -401,12 +435,121 @@ int main() {
     Dir pacman_curr_dir   = right;
     float pacman_speed = 100;
 
+    Texture2D background_texture = LoadTexture("./data/assets/bg.png");
+    Rectangle background_source = {0};
+    background_source.width = background_texture.width;
+    background_source.height = background_texture.height;
+    Rectangle background_dest = {0};
+    background_dest.width = screen_width;
+    background_dest.height = screen_height;
+
+
+    Anim pacman_anim = {0};
+    pacman_anim.texture = LoadTexture("./data/assets/pacman_eat.png");
+    pacman_anim.dest.width = cell_width;
+    pacman_anim.dest.height = cell_height;
+    pacman_anim.frames = 4;
+    pacman_anim.current_frame = 1;
+    pacman_anim.scale = 1.85;
+    pacman_anim.source.y = 0;
+    pacman_anim.source.width = pacman_anim.texture.width / pacman_anim.frames;
+    pacman_anim.source.height = pacman_anim.texture.height;
+    pacman_anim.rot = 0;
+    pacman_anim.timer.len = 0.07;
+    pacman_anim.timer.start_time = GetTime();
 
     float chase_speed = 80;
     float scared_speed = 50;
     float eaten_speed = 100;
 
     Ghost_Mode chase_scatter_toggle = scatter;
+
+    Anim rg_anim = {0};
+    rg_anim.texture = LoadTexture("./data/assets/red_ghost.png");
+    rg_anim.dest.width = cell_width;
+    rg_anim.dest.height = cell_height;
+    rg_anim.frames = 2;
+    rg_anim.current_frame = 1;
+    rg_anim.scale = 1.55;
+    rg_anim.source.y = 0;
+    rg_anim.source.width = rg_anim.texture.width / rg_anim.frames;
+    rg_anim.source.height = rg_anim.texture.height/4;
+    rg_anim.rot = 0;
+    rg_anim.timer.len = 0.07;
+    rg_anim.timer.start_time = GetTime();
+    
+    Anim pg_anim = {0};
+    pg_anim.texture = LoadTexture("./data/assets/pink_ghost.png");
+    pg_anim.dest.width = cell_width;
+    pg_anim.dest.height = cell_height;
+    pg_anim.frames = 2;
+    pg_anim.current_frame = 1;
+    pg_anim.scale = 1.55;
+    pg_anim.source.y = 0;
+    pg_anim.source.width = pg_anim.texture.width / pg_anim.frames;
+    pg_anim.source.height = pg_anim.texture.height/4;
+    pg_anim.rot = 0;
+    pg_anim.timer.len = 0.07;
+    pg_anim.timer.start_time = GetTime();
+    Anim eaten_ghost_anim = {0};
+
+
+    Anim og_anim = {0};
+    og_anim.texture = LoadTexture("./data/assets/orange_ghost.png");
+    og_anim.dest.width = cell_width;
+    og_anim.dest.height = cell_height;
+    og_anim.frames = 2;
+    og_anim.current_frame = 1;
+    og_anim.scale = 1.55;
+    og_anim.source.y = 0;
+    og_anim.source.width = og_anim.texture.width / og_anim.frames;
+    og_anim.source.height = og_anim.texture.height/4;
+    og_anim.rot = 0;
+    og_anim.timer.len = 0.07;
+    og_anim.timer.start_time = GetTime();
+
+
+    Anim bg_anim = {0};
+    bg_anim.texture = LoadTexture("./data/assets/blue_ghost.png");
+    bg_anim.dest.width = cell_width;
+    bg_anim.dest.height = cell_height;
+    bg_anim.frames = 2;
+    bg_anim.current_frame = 1;
+    bg_anim.scale = 1.55;
+    bg_anim.source.y = 0;
+    bg_anim.source.width = bg_anim.texture.width / bg_anim.frames;
+    bg_anim.source.height = bg_anim.texture.height/4;
+    bg_anim.rot = 0;
+    bg_anim.timer.len = 0.07;
+    bg_anim.timer.start_time = GetTime();
+
+
+    eaten_ghost_anim.texture = LoadTexture("./data/assets/eaten_ghost.png");
+    eaten_ghost_anim.dest.width = cell_width;
+    eaten_ghost_anim.dest.height = cell_height;
+    eaten_ghost_anim.frames = 2;
+    eaten_ghost_anim.current_frame = 1;
+    eaten_ghost_anim.scale = 1.55;
+    eaten_ghost_anim.source.y = 0;
+    eaten_ghost_anim.source.width = eaten_ghost_anim.texture.width / eaten_ghost_anim.frames;
+    eaten_ghost_anim.source.height = eaten_ghost_anim.texture.height/4;
+    eaten_ghost_anim.rot = 0;
+    eaten_ghost_anim.timer.len = 0.07;
+    eaten_ghost_anim.timer.start_time = GetTime();
+
+    Anim scared_ghost_anim = {0};
+    scared_ghost_anim.texture = LoadTexture("./data/assets/scared_ghost.png");
+    scared_ghost_anim.dest.width = cell_width;
+    scared_ghost_anim.dest.height = cell_height;
+    scared_ghost_anim.frames = 4;
+    scared_ghost_anim.current_frame = 0;
+    scared_ghost_anim.scale = 1.55;
+    scared_ghost_anim.source.y = 0;
+    scared_ghost_anim.source.width = scared_ghost_anim.texture.width / scared_ghost_anim.frames;
+    scared_ghost_anim.source.height = scared_ghost_anim.texture.height;
+    scared_ghost_anim.rot = 0;
+    scared_ghost_anim.timer.len = 0.07;
+    scared_ghost_anim.timer.start_time = GetTime();
 
     Ghost *ghosts[GHOST_COUNT ] = {0};
     Ghost red_ghost = {0};
@@ -422,9 +565,10 @@ int main() {
     red_ghost.color = RED;
     red_ghost.spawn_wait_time = 0;
 
+
     Ghost blue_ghost = {0};
-    blue_ghost.pos.x = 13 * cell_width;
-    blue_ghost.pos.y = 16 * cell_height;
+    blue_ghost.pos.x = 12 * cell_width;
+    blue_ghost.pos.y = 17 * cell_height;
     blue_ghost.cell.x = blue_ghost.pos.x/cell_width;
     blue_ghost.cell.y = blue_ghost.pos.y/cell_height;
     blue_ghost.scatter_cell.x = 27;
@@ -437,7 +581,7 @@ int main() {
 
     Ghost pink_ghost = {0};
     pink_ghost.pos.x = 14 * cell_width;
-    pink_ghost.pos.y = 16 * cell_height;
+    pink_ghost.pos.y = 17 * cell_height;
     pink_ghost.cell.x = pink_ghost.pos.x/cell_width;
     pink_ghost.cell.y = pink_ghost.pos.y/cell_height;
     pink_ghost.scatter_cell.x = 2;
@@ -449,8 +593,8 @@ int main() {
     pink_ghost.spawn_wait_time = 2;
 
     Ghost orange_ghost = {0};
-    orange_ghost.pos.x = 15 * cell_width;
-    orange_ghost.pos.y = 16 * cell_height;
+    orange_ghost.pos.x = 16 * cell_width;
+    orange_ghost.pos.y = 17 * cell_height;
     orange_ghost.cell.x = orange_ghost.pos.x/cell_width;
     orange_ghost.cell.y = orange_ghost.pos.y/cell_height;
     orange_ghost.scatter_cell.x = 0;
@@ -494,15 +638,18 @@ int main() {
     while (!WindowShouldClose()) {
         BeginDrawing();
         ClearBackground(BLACK);
-        draw_map();
-        //draw_grid();
+        DrawTexturePro(background_texture, background_source, background_dest,(Vector2){0,0}, 0,  WHITE);
+         draw_map();
+        // draw_grid();
         float current_time= GetTime();
         float frame_time= GetFrameTime();
 
         if ((eat_timer.start_time + eat_timer.len) < current_time) {
             for (int i = 0; i <GHOST_COUNT; ++i) {
                 if (ghosts[i]->mode == scared)  {
-                    flip_dir(&ghosts[i]->curr_dir, &ghosts[i]->wanted_dir);
+                    flip_ghost_dir(ghosts[i]);
+
+
                     ghosts[i]->mode = chase;
                     chase_timer.start_time = current_time;
                 }
@@ -547,7 +694,7 @@ int main() {
         }
         else if ( map[pacman_cell.y][pacman_cell.x] == 2 ) {
             for (int i = 0; i<GHOST_COUNT; ++i) {
-                flip_dir(&ghosts[i]->curr_dir, &ghosts[i]->wanted_dir);
+                flip_ghost_dir(ghosts[i]);
                 map[pacman_cell.y][pacman_cell.x] = 0;
                 eat_timer.start_time = current_time;
                 if (ghosts[i]->mode == scatter || ghosts[i]->mode == chase)  ghosts[i]->mode = scared;
@@ -719,10 +866,475 @@ int main() {
         }
         move_player(&pacman_curr_dir, &pacman_wanted_dir, &pacman_pos, &pacman_cell, pacman_dp);
 
-        DrawRectangle(pacman_pos.x, pacman_pos.y, cell_width, cell_height, YELLOW);
+
         for (int i = 0; i <GHOST_COUNT; ++i) {
-            DrawRectangle(ghosts[i]->pos.x, ghosts[i]->pos.y, cell_width, cell_height, ghosts[i]->color);
+            if (i == red) {
+                if (ghosts[i]->mode == eaten || ghosts[i]->mode == jail_down ) {
+                    eaten_ghost_anim.origin.x = eaten_ghost_anim.scale * (cell_width/2.0);
+                    eaten_ghost_anim.origin.y = eaten_ghost_anim.scale * (cell_width/2.0);
+                    eaten_ghost_anim.dest.x = ghosts[i]->pos.x + eaten_ghost_anim.origin.x/2;
+                    eaten_ghost_anim.dest.y = ghosts[i]->pos.y + eaten_ghost_anim.origin.y/2;
+                    eaten_ghost_anim.dest.width = eaten_ghost_anim.scale * (cell_width);
+                    eaten_ghost_anim.dest.height =eaten_ghost_anim.scale * ( cell_height);
+
+                    eaten_ghost_anim.source.x = eaten_ghost_anim.current_frame * (eaten_ghost_anim.texture.width/eaten_ghost_anim.frames);
+                    if ( (eaten_ghost_anim.timer.start_time + eaten_ghost_anim.timer.len) < current_time) {
+                        eaten_ghost_anim.timer.start_time = current_time;
+                        ++eaten_ghost_anim.current_frame;
+                    }
+
+                    if (eaten_ghost_anim.current_frame > eaten_ghost_anim.frames) eaten_ghost_anim.current_frame = 0;
+                    switch (ghosts[i]->curr_dir) {
+                        case left:{
+                                      eaten_ghost_anim.source.y = 1 * (eaten_ghost_anim.texture.height/4);
+                                      DrawTexturePro(eaten_ghost_anim.texture, eaten_ghost_anim.source, eaten_ghost_anim.dest, eaten_ghost_anim.origin,  eaten_ghost_anim.rot, WHITE); 
+                                  }break;
+                        case right:{
+                                       eaten_ghost_anim.source.y = 0 * (eaten_ghost_anim.texture.height/4);
+                                       DrawTexturePro(eaten_ghost_anim.texture, eaten_ghost_anim.source, eaten_ghost_anim.dest, eaten_ghost_anim.origin,  eaten_ghost_anim.rot, WHITE); 
+                                   }break;
+                        case up:{
+                                    eaten_ghost_anim.source.y = 2 * (eaten_ghost_anim.texture.height/4);
+                                    DrawTexturePro(eaten_ghost_anim.texture, eaten_ghost_anim.source, eaten_ghost_anim.dest, eaten_ghost_anim.origin,  eaten_ghost_anim.rot, WHITE); 
+                                }break;
+                        case down:{
+                                      eaten_ghost_anim.source.y = 3 * (eaten_ghost_anim.texture.height/4);
+                                      DrawTexturePro(eaten_ghost_anim.texture, eaten_ghost_anim.source, eaten_ghost_anim.dest, eaten_ghost_anim.origin,  eaten_ghost_anim.rot, WHITE); 
+                                  }break;
+                    }
+                
+                }
+                else if (ghosts[i]->mode == scared) {
+                    scared_ghost_anim.origin.x = scared_ghost_anim.scale * (cell_width/2.0);
+                    scared_ghost_anim.origin.y = scared_ghost_anim.scale * (cell_width/2.0);
+                    scared_ghost_anim.dest.x = ghosts[i]->pos.x + scared_ghost_anim.origin.x/2;
+                    scared_ghost_anim.dest.y = ghosts[i]->pos.y + scared_ghost_anim.origin.y/2;
+                    scared_ghost_anim.dest.width = scared_ghost_anim.scale * (cell_width);
+                    scared_ghost_anim.dest.height =scared_ghost_anim.scale * ( cell_height);
+
+                    scared_ghost_anim.source.x = scared_ghost_anim.current_frame * (scared_ghost_anim.texture.width/scared_ghost_anim.frames);
+                    if ( (scared_ghost_anim.timer.start_time + scared_ghost_anim.timer.len) < current_time) {
+                        scared_ghost_anim.timer.start_time = current_time;
+                        ++scared_ghost_anim.current_frame;
+                    }
+
+                    if (scared_ghost_anim.current_frame > scared_ghost_anim.frames) scared_ghost_anim.current_frame = 0;
+                    switch (ghosts[i]->curr_dir) {
+                        case left:{
+                                      DrawTexturePro(scared_ghost_anim.texture, scared_ghost_anim.source, scared_ghost_anim.dest, scared_ghost_anim.origin,  scared_ghost_anim.rot, WHITE); 
+                                  }break;
+                        case right:{
+                                       DrawTexturePro(scared_ghost_anim.texture, scared_ghost_anim.source, scared_ghost_anim.dest, scared_ghost_anim.origin,  scared_ghost_anim.rot, WHITE); 
+                                   }break;
+                        case up:{
+                                    DrawTexturePro(scared_ghost_anim.texture, scared_ghost_anim.source, scared_ghost_anim.dest, scared_ghost_anim.origin,  scared_ghost_anim.rot, WHITE); 
+                                }break;
+                        case down:{
+                                      DrawTexturePro(scared_ghost_anim.texture, scared_ghost_anim.source, scared_ghost_anim.dest, scared_ghost_anim.origin,  scared_ghost_anim.rot, WHITE); 
+                                  }break;
+                    }
+                }
+                else {
+                    rg_anim.origin.x = rg_anim.scale * (cell_width/2.0);
+                    rg_anim.origin.y = rg_anim.scale * (cell_width/2.0);
+                    rg_anim.dest.x = ghosts[i]->pos.x + rg_anim.origin.x/2;
+                    rg_anim.dest.y = ghosts[i]->pos.y + rg_anim.origin.y/2;
+                    rg_anim.dest.width = rg_anim.scale * (cell_width);
+                    rg_anim.dest.height =rg_anim.scale * ( cell_height);
+
+                    rg_anim.source.x = rg_anim.current_frame * (rg_anim.texture.width/rg_anim.frames);
+                    if ( (rg_anim.timer.start_time + rg_anim.timer.len) < current_time) {
+                        rg_anim.timer.start_time = current_time;
+                        ++rg_anim.current_frame;
+                    }
+
+                    if (rg_anim.current_frame > rg_anim.frames) rg_anim.current_frame = 0;
+                    switch (ghosts[i]->curr_dir) {
+                        case left:{
+                                      //rg_anim.rot = 180;
+                                      rg_anim.source.y = 1 * (rg_anim.texture.height/4);
+                                      DrawTexturePro(rg_anim.texture, rg_anim.source, rg_anim.dest, rg_anim.origin,  rg_anim.rot, WHITE); 
+                                  }break;
+                        case right:{
+                                       rg_anim.source.y = 0 * (rg_anim.texture.height/4);
+                                       //rg_anim.rot = 0;
+                                       DrawTexturePro(rg_anim.texture, rg_anim.source, rg_anim.dest, rg_anim.origin,  rg_anim.rot, WHITE); 
+                                   }break;
+                        case up:{
+                                    rg_anim.source.y = 2 * (rg_anim.texture.height/4);
+                                    //rg_anim.rot = 270;
+                                    DrawTexturePro(rg_anim.texture, rg_anim.source, rg_anim.dest, rg_anim.origin,  rg_anim.rot, WHITE); 
+                                }break;
+                        case down:{
+                                      rg_anim.source.y = 3 * (rg_anim.texture.height/4);
+                                      //rg_anim.rot = 90;
+                                      DrawTexturePro(rg_anim.texture, rg_anim.source, rg_anim.dest, rg_anim.origin,  rg_anim.rot, WHITE); 
+                                  }break;
+                    }
+                }
+            }
+            else if (i==pink) {
+                if (ghosts[i]->mode == eaten || ghosts[i]->mode == jail_down ) {
+                    eaten_ghost_anim.origin.x = eaten_ghost_anim.scale * (cell_width/2.0);
+                    eaten_ghost_anim.origin.y = eaten_ghost_anim.scale * (cell_width/2.0);
+                    eaten_ghost_anim.dest.x = ghosts[i]->pos.x + eaten_ghost_anim.origin.x/2;
+                    eaten_ghost_anim.dest.y = ghosts[i]->pos.y + eaten_ghost_anim.origin.y/2;
+                    eaten_ghost_anim.dest.width = eaten_ghost_anim.scale * (cell_width);
+                    eaten_ghost_anim.dest.height =eaten_ghost_anim.scale * ( cell_height);
+
+                    eaten_ghost_anim.source.x = eaten_ghost_anim.current_frame * (eaten_ghost_anim.texture.width/eaten_ghost_anim.frames);
+                    if ( (eaten_ghost_anim.timer.start_time + eaten_ghost_anim.timer.len) < current_time) {
+                        eaten_ghost_anim.timer.start_time = current_time;
+                        ++eaten_ghost_anim.current_frame;
+                    }
+
+                    if (eaten_ghost_anim.current_frame > eaten_ghost_anim.frames) eaten_ghost_anim.current_frame = 0;
+                    switch (ghosts[i]->curr_dir) {
+                        case left:{
+                                      //eaten_ghost_anim.rot = 180;
+                                      eaten_ghost_anim.source.y = 1 * (eaten_ghost_anim.texture.height/4);
+                                      DrawTexturePro(eaten_ghost_anim.texture, eaten_ghost_anim.source, eaten_ghost_anim.dest, eaten_ghost_anim.origin,  eaten_ghost_anim.rot, WHITE); 
+                                  }break;
+                        case right:{
+                                       eaten_ghost_anim.source.y = 0 * (eaten_ghost_anim.texture.height/4);
+                                       //eaten_ghost_anim.rot = 0;
+                                       DrawTexturePro(eaten_ghost_anim.texture, eaten_ghost_anim.source, eaten_ghost_anim.dest, eaten_ghost_anim.origin,  eaten_ghost_anim.rot, WHITE); 
+                                   }break;
+                        case up:{
+                                    eaten_ghost_anim.source.y = 2 * (eaten_ghost_anim.texture.height/4);
+                                    //eaten_ghost_anim.rot = 270;
+                                    DrawTexturePro(eaten_ghost_anim.texture, eaten_ghost_anim.source, eaten_ghost_anim.dest, eaten_ghost_anim.origin,  eaten_ghost_anim.rot, WHITE); 
+                                }break;
+                        case down:{
+                                      eaten_ghost_anim.source.y = 3 * (eaten_ghost_anim.texture.height/4);
+                                      //eaten_ghost_anim.rot = 90;
+                                      DrawTexturePro(eaten_ghost_anim.texture, eaten_ghost_anim.source, eaten_ghost_anim.dest, eaten_ghost_anim.origin,  eaten_ghost_anim.rot, WHITE); 
+                                  }break;
+                    }
+                
+                }
+                else if (ghosts[i]->mode == scared) {
+                    scared_ghost_anim.origin.x = scared_ghost_anim.scale * (cell_width/2.0);
+                    scared_ghost_anim.origin.y = scared_ghost_anim.scale * (cell_width/2.0);
+                    scared_ghost_anim.dest.x = ghosts[i]->pos.x + scared_ghost_anim.origin.x/2;
+                    scared_ghost_anim.dest.y = ghosts[i]->pos.y + scared_ghost_anim.origin.y/2;
+                    scared_ghost_anim.dest.width = scared_ghost_anim.scale * (cell_width);
+                    scared_ghost_anim.dest.height =scared_ghost_anim.scale * ( cell_height);
+
+                    scared_ghost_anim.source.x = scared_ghost_anim.current_frame * (scared_ghost_anim.texture.width/scared_ghost_anim.frames);
+                    if ( (scared_ghost_anim.timer.start_time + scared_ghost_anim.timer.len) < current_time) {
+                        scared_ghost_anim.timer.start_time = current_time;
+                        ++scared_ghost_anim.current_frame;
+                    }
+
+                    if (scared_ghost_anim.current_frame > scared_ghost_anim.frames) scared_ghost_anim.current_frame = 0;
+                    switch (ghosts[i]->curr_dir) {
+                        case left:{
+                                      //scared_ghost_anim.rot = 180;
+                                      DrawTexturePro(scared_ghost_anim.texture, scared_ghost_anim.source, scared_ghost_anim.dest, scared_ghost_anim.origin,  scared_ghost_anim.rot, WHITE); 
+                                  }break;
+                        case right:{
+                                       //scared_ghost_anim.rot = 0;
+                                       DrawTexturePro(scared_ghost_anim.texture, scared_ghost_anim.source, scared_ghost_anim.dest, scared_ghost_anim.origin,  scared_ghost_anim.rot, WHITE); 
+                                   }break;
+                        case up:{
+                                    //scared_ghost_anim.rot = 270;
+                                    DrawTexturePro(scared_ghost_anim.texture, scared_ghost_anim.source, scared_ghost_anim.dest, scared_ghost_anim.origin,  scared_ghost_anim.rot, WHITE); 
+                                }break;
+                        case down:{
+                                      //scared_ghost_anim.rot = 90;
+                                      DrawTexturePro(scared_ghost_anim.texture, scared_ghost_anim.source, scared_ghost_anim.dest, scared_ghost_anim.origin,  scared_ghost_anim.rot, WHITE); 
+                                  }break;
+                    }
+                }
+                else {
+                    pg_anim.origin.x = pg_anim.scale * (cell_width/2.0);
+                    pg_anim.origin.y = pg_anim.scale * (cell_width/2.0);
+                    pg_anim.dest.x = ghosts[i]->pos.x + pg_anim.origin.x/2;
+                    pg_anim.dest.y = ghosts[i]->pos.y + pg_anim.origin.y/2;
+                    pg_anim.dest.width = pg_anim.scale * (cell_width);
+                    pg_anim.dest.height =pg_anim.scale * ( cell_height);
+
+                    pg_anim.source.x = pg_anim.current_frame * (pg_anim.texture.width/pg_anim.frames);
+                    if ( (pg_anim.timer.start_time + pg_anim.timer.len) < current_time) {
+                        pg_anim.timer.start_time = current_time;
+                        ++pg_anim.current_frame;
+                    }
+
+                    if (pg_anim.current_frame > pg_anim.frames) pg_anim.current_frame = 0;
+                    switch (ghosts[i]->curr_dir) {
+                        case left:{
+                                      //pg_anim.rot = 180;
+                                      pg_anim.source.y = 1 * (pg_anim.texture.height/4);
+                                      DrawTexturePro(pg_anim.texture, pg_anim.source, pg_anim.dest, pg_anim.origin,  pg_anim.rot, WHITE); 
+                                  }break;
+                        case right:{
+                                       pg_anim.source.y = 0 * (pg_anim.texture.height/4);
+                                       //pg_anim.rot = 0;
+                                       DrawTexturePro(pg_anim.texture, pg_anim.source, pg_anim.dest, pg_anim.origin,  pg_anim.rot, WHITE); 
+                                   }break;
+                        case up:{
+                                    pg_anim.source.y = 2 * (pg_anim.texture.height/4);
+                                    //pg_anim.rot = 270;
+                                    DrawTexturePro(pg_anim.texture, pg_anim.source, pg_anim.dest, pg_anim.origin,  pg_anim.rot, WHITE); 
+                                }break;
+                        case down:{
+                                      pg_anim.source.y = 3 * (pg_anim.texture.height/4);
+                                      //pg_anim.rot = 90;
+                                      DrawTexturePro(pg_anim.texture, pg_anim.source, pg_anim.dest, pg_anim.origin,  pg_anim.rot, WHITE); 
+                                  }break;
+                    }
+                }
+            }
+            else if (i==blue) {
+                if (ghosts[i]->mode == eaten || ghosts[i]->mode == jail_down ) {
+                    eaten_ghost_anim.origin.x = eaten_ghost_anim.scale * (cell_width/2.0);
+                    eaten_ghost_anim.origin.y = eaten_ghost_anim.scale * (cell_width/2.0);
+                    eaten_ghost_anim.dest.x = ghosts[i]->pos.x + eaten_ghost_anim.origin.x/2;
+                    eaten_ghost_anim.dest.y = ghosts[i]->pos.y + eaten_ghost_anim.origin.y/2;
+                    eaten_ghost_anim.dest.width = eaten_ghost_anim.scale * (cell_width);
+                    eaten_ghost_anim.dest.height =eaten_ghost_anim.scale * ( cell_height);
+
+                    eaten_ghost_anim.source.x = eaten_ghost_anim.current_frame * (eaten_ghost_anim.texture.width/eaten_ghost_anim.frames);
+                    if ( (eaten_ghost_anim.timer.start_time + eaten_ghost_anim.timer.len) < current_time) {
+                        eaten_ghost_anim.timer.start_time = current_time;
+                        ++eaten_ghost_anim.current_frame;
+                    }
+
+                    if (eaten_ghost_anim.current_frame > eaten_ghost_anim.frames) eaten_ghost_anim.current_frame = 0;
+                    switch (ghosts[i]->curr_dir) {
+                        case left:{
+                                      //eaten_ghost_anim.rot = 180;
+                                      eaten_ghost_anim.source.y = 1 * (eaten_ghost_anim.texture.height/4);
+                                      DrawTexturePro(eaten_ghost_anim.texture, eaten_ghost_anim.source, eaten_ghost_anim.dest, eaten_ghost_anim.origin,  eaten_ghost_anim.rot, WHITE); 
+                                  }break;
+                        case right:{
+                                       eaten_ghost_anim.source.y = 0 * (eaten_ghost_anim.texture.height/4);
+                                       //eaten_ghost_anim.rot = 0;
+                                       DrawTexturePro(eaten_ghost_anim.texture, eaten_ghost_anim.source, eaten_ghost_anim.dest, eaten_ghost_anim.origin,  eaten_ghost_anim.rot, WHITE); 
+                                   }break;
+                        case up:{
+                                    eaten_ghost_anim.source.y = 2 * (eaten_ghost_anim.texture.height/4);
+                                    //eaten_ghost_anim.rot = 270;
+                                    DrawTexturePro(eaten_ghost_anim.texture, eaten_ghost_anim.source, eaten_ghost_anim.dest, eaten_ghost_anim.origin,  eaten_ghost_anim.rot, WHITE); 
+                                }break;
+                        case down:{
+                                      eaten_ghost_anim.source.y = 3 * (eaten_ghost_anim.texture.height/4);
+                                      //eaten_ghost_anim.rot = 90;
+                                      DrawTexturePro(eaten_ghost_anim.texture, eaten_ghost_anim.source, eaten_ghost_anim.dest, eaten_ghost_anim.origin,  eaten_ghost_anim.rot, WHITE); 
+                                  }break;
+                    }
+                
+                }
+                else if (ghosts[i]->mode == scared) {
+                    scared_ghost_anim.origin.x = scared_ghost_anim.scale * (cell_width/2.0);
+                    scared_ghost_anim.origin.y = scared_ghost_anim.scale * (cell_width/2.0);
+                    scared_ghost_anim.dest.x = ghosts[i]->pos.x + scared_ghost_anim.origin.x/2;
+                    scared_ghost_anim.dest.y = ghosts[i]->pos.y + scared_ghost_anim.origin.y/2;
+                    scared_ghost_anim.dest.width = scared_ghost_anim.scale * (cell_width);
+                    scared_ghost_anim.dest.height =scared_ghost_anim.scale * ( cell_height);
+
+                    scared_ghost_anim.source.x = scared_ghost_anim.current_frame * (scared_ghost_anim.texture.width/scared_ghost_anim.frames);
+                    if ( (scared_ghost_anim.timer.start_time + scared_ghost_anim.timer.len) < current_time) {
+                        scared_ghost_anim.timer.start_time = current_time;
+                        ++scared_ghost_anim.current_frame;
+                    }
+
+                    if (scared_ghost_anim.current_frame > scared_ghost_anim.frames) scared_ghost_anim.current_frame = 0;
+                    switch (ghosts[i]->curr_dir) {
+                        case left:{
+                                      //scared_ghost_anim.rot = 180;
+                                      DrawTexturePro(scared_ghost_anim.texture, scared_ghost_anim.source, scared_ghost_anim.dest, scared_ghost_anim.origin,  scared_ghost_anim.rot, WHITE); 
+                                  }break;
+                        case right:{
+                                       //scared_ghost_anim.rot = 0;
+                                       DrawTexturePro(scared_ghost_anim.texture, scared_ghost_anim.source, scared_ghost_anim.dest, scared_ghost_anim.origin,  scared_ghost_anim.rot, WHITE); 
+                                   }break;
+                        case up:{
+                                    //scared_ghost_anim.rot = 270;
+                                    DrawTexturePro(scared_ghost_anim.texture, scared_ghost_anim.source, scared_ghost_anim.dest, scared_ghost_anim.origin,  scared_ghost_anim.rot, WHITE); 
+                                }break;
+                        case down:{
+                                      //scared_ghost_anim.rot = 90;
+                                      DrawTexturePro(scared_ghost_anim.texture, scared_ghost_anim.source, scared_ghost_anim.dest, scared_ghost_anim.origin,  scared_ghost_anim.rot, WHITE); 
+                                  }break;
+                    }
+                }
+                else {
+                    bg_anim.origin.x = bg_anim.scale * (cell_width/2.0);
+                    bg_anim.origin.y = bg_anim.scale * (cell_width/2.0);
+                    bg_anim.dest.x = ghosts[i]->pos.x + bg_anim.origin.x/2;
+                    bg_anim.dest.y = ghosts[i]->pos.y + bg_anim.origin.y/2;
+                    bg_anim.dest.width = bg_anim.scale * (cell_width);
+                    bg_anim.dest.height =bg_anim.scale * ( cell_height);
+
+                    bg_anim.source.x = bg_anim.current_frame * (bg_anim.texture.width/bg_anim.frames);
+                    if ( (bg_anim.timer.start_time + bg_anim.timer.len) < current_time) {
+                        bg_anim.timer.start_time = current_time;
+                        ++bg_anim.current_frame;
+                    }
+
+                    if (bg_anim.current_frame > bg_anim.frames) bg_anim.current_frame = 0;
+                    switch (ghosts[i]->curr_dir) {
+                        case left:{
+                                      //bg_anim.rot = 180;
+                                      bg_anim.source.y = 1 * (bg_anim.texture.height/4);
+                                      DrawTexturePro(bg_anim.texture, bg_anim.source, bg_anim.dest, bg_anim.origin,  bg_anim.rot, WHITE); 
+                                  }break;
+                        case right:{
+                                       bg_anim.source.y = 0 * (bg_anim.texture.height/4);
+                                       //bg_anim.rot = 0;
+                                       DrawTexturePro(bg_anim.texture, bg_anim.source, bg_anim.dest, bg_anim.origin,  bg_anim.rot, WHITE); 
+                                   }break;
+                        case up:{
+                                    bg_anim.source.y = 2 * (bg_anim.texture.height/4);
+                                    //bg_anim.rot = 270;
+                                    DrawTexturePro(bg_anim.texture, bg_anim.source, bg_anim.dest, bg_anim.origin,  bg_anim.rot, WHITE); 
+                                }break;
+                        case down:{
+                                      bg_anim.source.y = 3 * (bg_anim.texture.height/4);
+                                      //bg_anim.rot = 90;
+                                      DrawTexturePro(bg_anim.texture, bg_anim.source, bg_anim.dest, bg_anim.origin,  bg_anim.rot, WHITE); 
+                                  }break;
+                    }
+                }
+            }
+            else if (i == orange) {
+                if (ghosts[i]->mode == eaten || ghosts[i]->mode == jail_down ) {
+                    eaten_ghost_anim.origin.x = eaten_ghost_anim.scale * (cell_width/2.0);
+                    eaten_ghost_anim.origin.y = eaten_ghost_anim.scale * (cell_width/2.0);
+                    eaten_ghost_anim.dest.x = ghosts[i]->pos.x + eaten_ghost_anim.origin.x/2;
+                    eaten_ghost_anim.dest.y = ghosts[i]->pos.y + eaten_ghost_anim.origin.y/2;
+                    eaten_ghost_anim.dest.width = eaten_ghost_anim.scale * (cell_width);
+                    eaten_ghost_anim.dest.height =eaten_ghost_anim.scale * ( cell_height);
+
+                    eaten_ghost_anim.source.x = eaten_ghost_anim.current_frame * (eaten_ghost_anim.texture.width/eaten_ghost_anim.frames);
+                    if ( (eaten_ghost_anim.timer.start_time + eaten_ghost_anim.timer.len) < current_time) {
+                        eaten_ghost_anim.timer.start_time = current_time;
+                        ++eaten_ghost_anim.current_frame;
+                    }
+
+                    if (eaten_ghost_anim.current_frame > eaten_ghost_anim.frames) eaten_ghost_anim.current_frame = 0;
+                    switch (ghosts[i]->curr_dir) {
+                        case left:{
+                                      eaten_ghost_anim.source.y = 1 * (eaten_ghost_anim.texture.height/4);
+                                      DrawTexturePro(eaten_ghost_anim.texture, eaten_ghost_anim.source, eaten_ghost_anim.dest, eaten_ghost_anim.origin,  eaten_ghost_anim.rot, WHITE); 
+                                  }break;
+                        case right:{
+                                       eaten_ghost_anim.source.y = 0 * (eaten_ghost_anim.texture.height/4);
+                                       DrawTexturePro(eaten_ghost_anim.texture, eaten_ghost_anim.source, eaten_ghost_anim.dest, eaten_ghost_anim.origin,  eaten_ghost_anim.rot, WHITE); 
+                                   }break;
+                        case up:{
+                                    eaten_ghost_anim.source.y = 2 * (eaten_ghost_anim.texture.height/4);
+                                    DrawTexturePro(eaten_ghost_anim.texture, eaten_ghost_anim.source, eaten_ghost_anim.dest, eaten_ghost_anim.origin,  eaten_ghost_anim.rot, WHITE); 
+                                }break;
+                        case down:{
+                                      eaten_ghost_anim.source.y = 3 * (eaten_ghost_anim.texture.height/4);
+                                      DrawTexturePro(eaten_ghost_anim.texture, eaten_ghost_anim.source, eaten_ghost_anim.dest, eaten_ghost_anim.origin,  eaten_ghost_anim.rot, WHITE); 
+                                  }break;
+                    }
+                
+                }
+                else if (ghosts[i]->mode == scared) {
+                    scared_ghost_anim.origin.x = scared_ghost_anim.scale * (cell_width/2.0);
+                    scared_ghost_anim.origin.y = scared_ghost_anim.scale * (cell_width/2.0);
+                    scared_ghost_anim.dest.x = ghosts[i]->pos.x + scared_ghost_anim.origin.x/2;
+                    scared_ghost_anim.dest.y = ghosts[i]->pos.y + scared_ghost_anim.origin.y/2;
+                    scared_ghost_anim.dest.width = scared_ghost_anim.scale * (cell_width);
+                    scared_ghost_anim.dest.height =scared_ghost_anim.scale * ( cell_height);
+
+                    scared_ghost_anim.source.x = scared_ghost_anim.current_frame * (scared_ghost_anim.texture.width/scared_ghost_anim.frames);
+                    if ( (scared_ghost_anim.timer.start_time + scared_ghost_anim.timer.len) < current_time) {
+                        scared_ghost_anim.timer.start_time = current_time;
+                        ++scared_ghost_anim.current_frame;
+                    }
+
+                    if (scared_ghost_anim.current_frame > scared_ghost_anim.frames) scared_ghost_anim.current_frame = 0;
+                    switch (ghosts[i]->curr_dir) {
+                        case left:{
+                                      DrawTexturePro(scared_ghost_anim.texture, scared_ghost_anim.source, scared_ghost_anim.dest, scared_ghost_anim.origin,  scared_ghost_anim.rot, WHITE); 
+                                  }break;
+                        case right:{
+                                       DrawTexturePro(scared_ghost_anim.texture, scared_ghost_anim.source, scared_ghost_anim.dest, scared_ghost_anim.origin,  scared_ghost_anim.rot, WHITE); 
+                                   }break;
+                        case up:{
+                                    DrawTexturePro(scared_ghost_anim.texture, scared_ghost_anim.source, scared_ghost_anim.dest, scared_ghost_anim.origin,  scared_ghost_anim.rot, WHITE); 
+                                }break;
+                        case down:{
+                                      DrawTexturePro(scared_ghost_anim.texture, scared_ghost_anim.source, scared_ghost_anim.dest, scared_ghost_anim.origin,  scared_ghost_anim.rot, WHITE); 
+                                  }break;
+                    }
+                }
+                else {
+                    og_anim.origin.x = og_anim.scale * (cell_width/2.0);
+                    og_anim.origin.y = og_anim.scale * (cell_width/2.0);
+                    og_anim.dest.x = ghosts[i]->pos.x + og_anim.origin.x/2;
+                    og_anim.dest.y = ghosts[i]->pos.y + og_anim.origin.y/2;
+                    og_anim.dest.width = og_anim.scale * (cell_width);
+                    og_anim.dest.height =og_anim.scale * ( cell_height);
+
+                    og_anim.source.x = og_anim.current_frame * (og_anim.texture.width/og_anim.frames);
+                    if ( (og_anim.timer.start_time + og_anim.timer.len) < current_time) {
+                        og_anim.timer.start_time = current_time;
+                        ++og_anim.current_frame;
+                    }
+
+                    if (og_anim.current_frame > og_anim.frames) og_anim.current_frame = 0;
+                    switch (ghosts[i]->curr_dir) {
+                        case left:{
+                                      //og_anim.rot = 180;
+                                      og_anim.source.y = 1 * (og_anim.texture.height/4);
+                                      DrawTexturePro(og_anim.texture, og_anim.source, og_anim.dest, og_anim.origin,  og_anim.rot, WHITE); 
+                                  }break;
+                        case right:{
+                                       og_anim.source.y = 0 * (og_anim.texture.height/4);
+                                       //og_anim.rot = 0;
+                                       DrawTexturePro(og_anim.texture, og_anim.source, og_anim.dest, og_anim.origin,  og_anim.rot, WHITE); 
+                                   }break;
+                        case up:{
+                                    og_anim.source.y = 2 * (og_anim.texture.height/4);
+                                    //og_anim.rot = 270;
+                                    DrawTexturePro(og_anim.texture, og_anim.source, og_anim.dest, og_anim.origin,  og_anim.rot, WHITE); 
+                                }break;
+                        case down:{
+                                      og_anim.source.y = 3 * (og_anim.texture.height/4);
+                                      //og_anim.rot = 90;
+                                      DrawTexturePro(og_anim.texture, og_anim.source, og_anim.dest, og_anim.origin,  og_anim.rot, WHITE); 
+                                  }break;
+                    }
+                }
+            }
         }
+
+        pacman_anim.origin.x = pacman_anim.scale * (cell_width/2.0);
+        pacman_anim.origin.y = pacman_anim.scale * (cell_width/2.0);
+        pacman_anim.dest.x = pacman_pos.x + pacman_anim.origin.x/2;
+        pacman_anim.dest.y = pacman_pos.y + pacman_anim.origin.y/2;
+        pacman_anim.dest.width = pacman_anim.scale * (cell_width);
+        pacman_anim.dest.height =pacman_anim.scale * ( cell_height);
+
+        pacman_anim.source.x = pacman_anim.current_frame * (pacman_anim.texture.width/pacman_anim.frames);
+        if ( (pacman_anim.timer.start_time + pacman_anim.timer.len) < current_time) {
+            pacman_anim.timer.start_time = current_time;
+            ++pacman_anim.current_frame;
+        }
+
+        if (pacman_anim.current_frame > pacman_anim.frames) pacman_anim.current_frame = 0;
+        switch (pacman_curr_dir) {
+            case left:{
+                          pacman_anim.rot = 180;
+                      }break;
+            case right:{
+                           pacman_anim.rot = 0;
+                       }break;
+            case up:{
+                        pacman_anim.rot = 270;
+                    }break;
+            case down:{
+                          pacman_anim.rot = 90;
+                      }break;
+        }
+        DrawTexturePro(pacman_anim.texture, pacman_anim.source, pacman_anim.dest, pacman_anim.origin,  pacman_anim.rot, YELLOW); 
 
         EndDrawing();
     }

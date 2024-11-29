@@ -9,16 +9,22 @@
 
 
 int level_count = 1;
+int score = 0;
 int pelletes_remaining = 240;
+
+const int pellet_score = 1;
+const int ghost_score = 200;
 int wait_time_diff = 5;
+int chase_speed_diff = 20;
+int max_chase_speed = 200;
 
 const float window_scale = 3;
 const int screen_width = 224 * window_scale;
 const int screen_height = 288 * window_scale;
-const int ROWS = 36;
-const int COLS = 28;
-const int cell_width = screen_width /COLS;
-const int cell_height = screen_height /ROWS;
+const int rows = 36;
+const int cols = 28;
+const int cell_width = screen_width /cols;
+const int cell_height = screen_height /rows;
 float fps = 60;
 
 bool draw_next_cell = false;
@@ -179,8 +185,8 @@ int map[36][28] = {
 
 
 void draw_map() {
-    for (int row = 0; row <ROWS; ++row) {
-        for (int col = 0; col<COLS; ++col) {
+    for (int row = 0; row <rows; ++row) {
+        for (int col = 0; col<cols; ++col) {
             int x = col * cell_width;
             int y = row * cell_height;
             if (map[row][col] == 0) {
@@ -201,8 +207,8 @@ void draw_map() {
 
 
 void draw_grid() {
-    for (int row = 0; row<ROWS; ++row) {
-        for (int col = 0; col<COLS; ++col) {
+    for (int row = 0; row<rows; ++row) {
+        for (int col = 0; col<cols; ++col) {
             int x = col * cell_width;
             int y = row * cell_height;
             DrawRectangleLines(x, y, cell_width, cell_height, DARKPURPLE);
@@ -337,7 +343,7 @@ void update_wanted_dir(Dir curr_dir, Dir *wanted_dir, V2int cell, V2int target_c
     }
 
 
-    float unavailable = ROWS * COLS;
+    float unavailable = rows * cols;
     if (wall_hit || intersection) {
         float left_cell_dist  =  get_target_cell_dist(left_cell, target_cell);
         float right_cell_dist =  get_target_cell_dist(right_cell, target_cell);
@@ -750,6 +756,7 @@ int main() {
         if (map[pacman_cell.y][pacman_cell.x] == 1 ) {
             map[pacman_cell.y][pacman_cell.x] = 0;
             --pelletes_remaining;
+            score += pellet_score;
         }
         else if ( map[pacman_cell.y][pacman_cell.x] == 2 ) {
             for (int i = 0; i<GHOST_COUNT; ++i) {
@@ -768,6 +775,7 @@ int main() {
                 if (ghosts[i]->mode == scared) {
                     ghosts[i]->mode = eaten;
                     pacman_pause_eat.start_time = current_time;
+                    score += ghost_score;
                 }            
                 else if (ghosts[i]->mode == chase || ghosts[i]->mode == scatter){
                     pacman_lives_remain -= 1;
@@ -904,8 +912,8 @@ int main() {
             }
             else if (ghosts[i]->mode == scared) {
                 V2int rand_target_cell = {
-                    .x = rand()%COLS,
-                    .y = rand()%ROWS,
+                    .x = rand()%cols,
+                    .y = rand()%rows,
                 };
                 update_wanted_dir(ghosts[i]->curr_dir, &ghosts[i]->wanted_dir, ghosts[i]->cell, rand_target_cell);
                 ghosts[i]->color = DARKBLUE;
@@ -1445,7 +1453,7 @@ int main() {
             DrawTexturePro(pacman_anim.texture, pacman_anim.source, pacman_anim.dest, pacman_anim.origin,  pacman_anim.rot, YELLOW); 
         }
         else {
-            DrawText("200", pacman_pos.x, pacman_pos.y,  20, BLUE);
+            DrawText(TextFormat("%d", ghost_score), pacman_pos.x, pacman_pos.y,  20, BLUE);
         }
         for (int i = 0; i <pacman_lives_remain; ++i) {
             int live_x = cell_width * i;
@@ -1509,19 +1517,22 @@ int main() {
                     if (orange_ghost.spawn_wait_time < 0) orange_ghost.spawn_wait_time = 0;
 
                     spawn_start = current_time;
-                    for (int row = 0; row < ROWS; ++row) {
-                        for (int col = 0; col < COLS; ++col) {
+                    for (int row = 0; row < rows; ++row) {
+                        for (int col = 0; col < cols; ++col) {
                             map[row][col] = map_backup[row][col];
                         }
                     }
                     wait_time_diff += 5;
+                    chase_speed += chase_speed_diff;
+                    if (chase_speed > max_chase_speed) chase_speed = max_chase_speed;
 
             ++level_count;
         }
-        DrawText(TextFormat("Level %d", level_count), 0, 0,  50, BLUE);
+        DrawText(TextFormat("Level %d", level_count), 0, 0,  30, BLUE);
+        DrawText(TextFormat("score %d", score), 0, cell_height,  30, BLUE);
         if (pacman_lives_remain < 0) {
             running  = false;
-            printf("you died on level %d\n", level_count);
+            printf("you died on level %d with a score of %d\n", level_count, score);
         }
         EndDrawing();
     }

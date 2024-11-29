@@ -6,13 +6,19 @@
 
 #define GHOST_COUNT 4
 
+
+
+int level_count = 1;
+int pelletes_remaining = 240;
+int wait_time_diff = 5;
+
 const float window_scale = 3;
 const int screen_width = 224 * window_scale;
 const int screen_height = 288 * window_scale;
-const int rows = 36;
-const int cols = 28;
-const int cell_width = screen_width /cols;
-const int cell_height = screen_height /rows;
+const int ROWS = 36;
+const int COLS = 28;
+const int cell_width = screen_width /COLS;
+const int cell_height = screen_height /ROWS;
 float fps = 60;
 
 bool draw_next_cell = false;
@@ -92,6 +98,46 @@ typedef enum {
 }map_key;
 
 
+int map_backup[36][28] = {
+    {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+    {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+    {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+    {3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3},
+    {3,1,1,1,1,1,1,1,1,1,1,1,1,3,3,1,1,1,1,1,1,1,1,1,1,1,1,3},
+    {3,1,3,3,3,3,1,3,3,3,3,3,1,3,3,1,3,3,3,3,3,1,3,3,3,3,1,3},
+    {3,2,3,3,3,3,1,3,3,3,3,3,1,3,3,1,3,3,3,3,3,1,3,3,3,3,2,3},
+    {3,1,3,3,3,3,1,3,3,3,3,3,1,3,3,1,3,3,3,3,3,1,3,3,3,3,1,3},
+    {3,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,3},
+    {3,1,3,3,3,3,1,3,3,1,3,3,3,3,3,3,3,3,1,3,3,1,3,3,3,3,1,3},
+    {3,1,3,3,3,3,1,3,3,1,3,3,3,3,3,3,3,3,1,3,3,1,3,3,3,3,1,3},
+    {3,1,1,1,1,1,1,3,3,1,1,1,1,3,3,1,1,1,1,3,3,1,1,1,1,1,1,3},
+    {3,3,3,3,3,3,1,3,3,3,3,3,0,3,3,0,3,3,3,3,3,1,3,3,3,3,3,3},
+    {0,0,0,0,0,3,1,3,3,3,3,3,0,3,3,0,3,3,3,3,3,1,3,0,0,0,0,0},
+    {0,0,0,0,0,3,1,3,3,0,0,0,0,0,0,0,0,0,0,3,3,1,3,0,0,0,0,0},
+    {0,0,0,0,0,3,1,3,3,0,3,3,3,3,3,3,3,3,0,3,3,1,3,0,0,0,0,0},
+    {3,3,3,3,3,3,1,3,3,0,3,0,0,0,0,0,0,3,0,3,3,1,3,3,3,3,3,3},
+    {8,0,0,0,0,0,1,0,0,0,3,0,0,0,0,0,0,3,0,0,0,1,0,0,0,0,0,9},
+    {3,3,3,3,3,3,1,3,3,0,3,0,0,0,0,0,0,3,0,3,3,1,3,3,3,3,3,3},
+    {0,0,0,0,0,3,1,3,3,0,3,3,3,3,3,3,3,3,0,3,3,1,3,0,0,0,0,0},
+    {0,0,0,0,0,3,1,3,3,0,0,0,0,0,0,0,0,0,0,3,3,1,3,0,0,0,0,0},
+    {0,0,0,0,0,3,1,3,3,0,3,3,3,3,3,3,3,3,0,3,3,1,3,0,0,0,0,0},
+    {3,3,3,3,3,3,1,3,3,0,3,3,3,3,3,3,3,3,0,3,3,1,3,3,3,3,3,3},
+    {3,1,1,1,1,1,1,1,1,1,1,1,1,3,3,1,1,1,1,1,1,1,1,1,1,1,1,3},
+    {3,1,3,3,3,3,1,3,3,3,3,3,1,3,3,1,3,3,3,3,3,1,3,3,3,3,1,3},
+    {3,1,3,3,3,3,1,3,3,3,3,3,1,3,3,1,3,3,3,3,3,1,3,3,3,3,1,3},
+    {3,2,1,1,3,3,1,1,1,1,1,1,1,0,0,1,1,1,1,1,1,1,3,3,1,1,2,3},
+    {3,3,3,1,3,3,1,3,3,1,3,3,3,3,3,3,3,3,1,3,3,1,3,3,1,3,3,3},
+    {3,3,3,1,3,3,1,3,3,1,3,3,3,3,3,3,3,3,1,3,3,1,3,3,1,3,3,3},
+    {3,1,1,1,1,1,1,3,3,1,1,1,1,3,3,1,1,1,1,3,3,1,1,1,1,1,1,3},
+    {3,1,3,3,3,3,3,3,3,3,3,3,1,3,3,1,3,3,3,3,3,3,3,3,3,3,1,3},
+    {3,1,3,3,3,3,3,3,3,3,3,3,1,3,3,1,3,3,3,3,3,3,3,3,3,3,1,3},
+    {3,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,3},
+    {3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3},
+    {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+    {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+};
+
+
 int map[36][28] = {
     {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
     {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
@@ -133,8 +179,8 @@ int map[36][28] = {
 
 
 void draw_map() {
-    for (int row = 0; row <rows; ++row) {
-        for (int col = 0; col<cols; ++col) {
+    for (int row = 0; row <ROWS; ++row) {
+        for (int col = 0; col<COLS; ++col) {
             int x = col * cell_width;
             int y = row * cell_height;
             if (map[row][col] == 0) {
@@ -155,8 +201,8 @@ void draw_map() {
 
 
 void draw_grid() {
-    for (int row = 0; row<rows; ++row) {
-        for (int col = 0; col<cols; ++col) {
+    for (int row = 0; row<ROWS; ++row) {
+        for (int col = 0; col<COLS; ++col) {
             int x = col * cell_width;
             int y = row * cell_height;
             DrawRectangleLines(x, y, cell_width, cell_height, DARKPURPLE);
@@ -291,7 +337,7 @@ void update_wanted_dir(Dir curr_dir, Dir *wanted_dir, V2int cell, V2int target_c
     }
 
 
-    float unavailable = rows * cols;
+    float unavailable = ROWS * COLS;
     if (wall_hit || intersection) {
         float left_cell_dist  =  get_target_cell_dist(left_cell, target_cell);
         float right_cell_dist =  get_target_cell_dist(right_cell, target_cell);
@@ -423,6 +469,7 @@ void move_player(Dir *curr_dir, Dir *wanted_dir, Vector2 *pos, V2int *cell, floa
 
 
 int main() {
+
     InitWindow(screen_width, screen_height, "pacman");
     SetTargetFPS(fps);
 
@@ -443,9 +490,10 @@ int main() {
     pacman_cell.y = pacman_pos.y/cell_height;
     Dir pacman_wanted_dir = right;
     Dir pacman_curr_dir   = right;
-    float pacman_speed = 130;
+    float pacman_speed = 170;
 
     Anim pacman_anim = {0};
+    int pacman_lives_remain = 2 ;
     pacman_anim.texture = LoadTexture("./data/assets/pacman_eat.png");
     pacman_anim.dest.width = cell_width;
     pacman_anim.dest.height = cell_height;
@@ -464,9 +512,9 @@ int main() {
     pacman_pause_eat.start_time = -3;
     pacman_pause_eat.len = 0.3;
 
-    float chase_speed = 80;
-    float scared_speed = 50;
-    float eaten_speed = 100;
+    float chase_speed  = 80;
+    float scared_speed = 40;
+    float eaten_speed  = 200;
 
     Ghost_Mode chase_scatter_toggle = scatter;
 
@@ -583,7 +631,7 @@ int main() {
     blue_ghost.curr_dir   = right;
     blue_ghost.mode = spawn_wait;
     blue_ghost.color = BLUE;
-    blue_ghost.spawn_wait_time = 1;
+    blue_ghost.spawn_wait_time = 15;
 
     Ghost pink_ghost = {0};
     pink_ghost.pos.x = 14 * cell_width;
@@ -596,7 +644,7 @@ int main() {
     pink_ghost.curr_dir   = left;
     pink_ghost.mode = spawn_wait;
     pink_ghost.color = PINK;
-    pink_ghost.spawn_wait_time = 2;
+    pink_ghost.spawn_wait_time = 30;
 
     Ghost orange_ghost = {0};
     orange_ghost.pos.x = (16 * cell_width) - 3 ;
@@ -609,7 +657,7 @@ int main() {
     orange_ghost.curr_dir   = left;
     orange_ghost.mode = spawn_wait;
     orange_ghost.color = ORANGE;
-    orange_ghost.spawn_wait_time = 3;
+    orange_ghost.spawn_wait_time = 45;
 
 
     typedef enum {
@@ -641,7 +689,8 @@ int main() {
     eat_timer.len = 8;
 
     float spawn_start = GetTime();
-    while (!WindowShouldClose()) {
+    bool running = true;
+    while (!WindowShouldClose() && running) {
         BeginDrawing();
         ClearBackground(BLACK);
         DrawTexturePro(background_texture, background_source, background_dest,(Vector2){0,0}, 0,  WHITE);
@@ -689,14 +738,18 @@ int main() {
             else if (ghosts[i]->mode == chase || ghosts[i]->mode == scatter || ghosts[i]->mode == spawn_exit) {
                 ghosts[i]->dp  = chase_speed * frame_time ; 
             }
-            else if (ghosts[i]->mode == eaten || ghosts[i]->mode == jail_down || ghosts[i]->mode == jail_up) {
+            else if (ghosts[i]->mode == eaten || ghosts[i]->mode == jail_down) {
                 ghosts[i]->dp = eaten_speed * frame_time;
+            }
+            else if (ghosts[i]->mode == jail_down || ghosts[i]->mode == jail_up) {
+                ghosts[i]->dp  = chase_speed * frame_time ; 
             }
         }
 
 
         if (map[pacman_cell.y][pacman_cell.x] == 1 ) {
             map[pacman_cell.y][pacman_cell.x] = 0;
+            --pelletes_remaining;
         }
         else if ( map[pacman_cell.y][pacman_cell.x] == 2 ) {
             for (int i = 0; i<GHOST_COUNT; ++i) {
@@ -716,8 +769,66 @@ int main() {
                     ghosts[i]->mode = eaten;
                     pacman_pause_eat.start_time = current_time;
                 }            
-                else {
-                    //TODO RESET and  lose life
+                else if (ghosts[i]->mode == chase || ghosts[i]->mode == scatter){
+                    pacman_lives_remain -= 1;
+                    pacman_pos.x = 14 * cell_width;
+                    pacman_pos.y = 26 * cell_height;
+                    pacman_cell.x = pacman_pos.x/cell_width;
+                    pacman_cell.y = pacman_pos.y/cell_height;
+                    pacman_wanted_dir = right;
+                    pacman_curr_dir   = right;
+
+                    red_ghost.pos.x = 14 * cell_width;
+                    red_ghost.pos.y = 14 * cell_height;
+                    red_ghost.cell.x = red_ghost.pos.x/cell_width;
+                    red_ghost.cell.y = red_ghost.pos.y/cell_height;
+                    red_ghost.wanted_dir = right;
+                    red_ghost.curr_dir   = right;
+                    red_ghost.spawn_wait_time = 0;
+                    red_ghost.mode = scatter; 
+                    red_ghost.color = RED;
+
+                    blue_ghost.pos.x = (12 * cell_width) - (cell_width/3);
+                    blue_ghost.pos.y = 17 * cell_height;
+                    blue_ghost.cell.x = blue_ghost.pos.x/cell_width;
+                    blue_ghost.cell.y = blue_ghost.pos.y/cell_height;
+                    blue_ghost.wanted_dir = right;
+                    blue_ghost.curr_dir   = right;
+                    blue_ghost.mode = spawn_wait;
+                    blue_ghost.color = BLUE;
+                    blue_ghost.spawn_wait_time = 15;
+                    blue_ghost.spawn_wait_time -= wait_time_diff;
+                    if (blue_ghost.spawn_wait_time < 0) blue_ghost.spawn_wait_time = 0;
+
+
+                    pink_ghost.pos.x = 14 * cell_width;
+                    pink_ghost.pos.y = 17 * cell_height;
+                    pink_ghost.cell.x = pink_ghost.pos.x/cell_width;
+                    pink_ghost.cell.y = pink_ghost.pos.y/cell_height;
+                    pink_ghost.wanted_dir = left;
+                    pink_ghost.curr_dir   = left;
+                    pink_ghost.mode = spawn_wait;
+                    pink_ghost.color = PINK;
+                    pink_ghost.spawn_wait_time = 2;
+                    pink_ghost.spawn_wait_time = 30;
+                    pink_ghost.spawn_wait_time -= wait_time_diff;
+                    if (pink_ghost.spawn_wait_time < 0) pink_ghost.spawn_wait_time = 0;
+
+                    orange_ghost.pos.x = (16 * cell_width) - 3 ;
+                    orange_ghost.pos.y = 17 * cell_height;
+                    orange_ghost.cell.x = orange_ghost.pos.x/cell_width;
+                    orange_ghost.cell.y = orange_ghost.pos.y/cell_height;
+                    orange_ghost.wanted_dir = left;
+                    orange_ghost.curr_dir   = left;
+                    orange_ghost.mode = spawn_wait;
+                    orange_ghost.color = ORANGE;
+                    orange_ghost.spawn_wait_time = 45;
+                    orange_ghost.spawn_wait_time -= wait_time_diff;
+                    if (orange_ghost.spawn_wait_time < 0) orange_ghost.spawn_wait_time = 0;
+
+                    spawn_start = current_time;
+
+
                 }
             }
 
@@ -793,8 +904,8 @@ int main() {
             }
             else if (ghosts[i]->mode == scared) {
                 V2int rand_target_cell = {
-                    .x = rand()%cols,
-                    .y = rand()%rows,
+                    .x = rand()%COLS,
+                    .y = rand()%ROWS,
                 };
                 update_wanted_dir(ghosts[i]->curr_dir, &ghosts[i]->wanted_dir, ghosts[i]->cell, rand_target_cell);
                 ghosts[i]->color = DARKBLUE;
@@ -973,23 +1084,19 @@ int main() {
                     if (rg_anim.current_frame > rg_anim.frames) rg_anim.current_frame = 0;
                     switch (ghosts[i]->curr_dir) {
                         case left:{
-                                      //rg_anim.rot = 180;
                                       rg_anim.source.y = 1 * (rg_anim.texture.height/4);
                                       DrawTexturePro(rg_anim.texture, rg_anim.source, rg_anim.dest, rg_anim.origin,  rg_anim.rot, WHITE); 
                                   }break;
                         case right:{
                                        rg_anim.source.y = 0 * (rg_anim.texture.height/4);
-                                       //rg_anim.rot = 0;
                                        DrawTexturePro(rg_anim.texture, rg_anim.source, rg_anim.dest, rg_anim.origin,  rg_anim.rot, WHITE); 
                                    }break;
                         case up:{
                                     rg_anim.source.y = 2 * (rg_anim.texture.height/4);
-                                    //rg_anim.rot = 270;
                                     DrawTexturePro(rg_anim.texture, rg_anim.source, rg_anim.dest, rg_anim.origin,  rg_anim.rot, WHITE); 
                                 }break;
                         case down:{
                                       rg_anim.source.y = 3 * (rg_anim.texture.height/4);
-                                      //rg_anim.rot = 90;
                                       DrawTexturePro(rg_anim.texture, rg_anim.source, rg_anim.dest, rg_anim.origin,  rg_anim.rot, WHITE); 
                                   }break;
                     }
@@ -1013,23 +1120,19 @@ int main() {
                     if (eaten_ghost_anim.current_frame > eaten_ghost_anim.frames) eaten_ghost_anim.current_frame = 0;
                     switch (ghosts[i]->curr_dir) {
                         case left:{
-                                      //eaten_ghost_anim.rot = 180;
                                       eaten_ghost_anim.source.y = 1 * (eaten_ghost_anim.texture.height/4);
                                       DrawTexturePro(eaten_ghost_anim.texture, eaten_ghost_anim.source, eaten_ghost_anim.dest, eaten_ghost_anim.origin,  eaten_ghost_anim.rot, WHITE); 
                                   }break;
                         case right:{
                                        eaten_ghost_anim.source.y = 0 * (eaten_ghost_anim.texture.height/4);
-                                       //eaten_ghost_anim.rot = 0;
                                        DrawTexturePro(eaten_ghost_anim.texture, eaten_ghost_anim.source, eaten_ghost_anim.dest, eaten_ghost_anim.origin,  eaten_ghost_anim.rot, WHITE); 
                                    }break;
                         case up:{
                                     eaten_ghost_anim.source.y = 2 * (eaten_ghost_anim.texture.height/4);
-                                    //eaten_ghost_anim.rot = 270;
                                     DrawTexturePro(eaten_ghost_anim.texture, eaten_ghost_anim.source, eaten_ghost_anim.dest, eaten_ghost_anim.origin,  eaten_ghost_anim.rot, WHITE); 
                                 }break;
                         case down:{
                                       eaten_ghost_anim.source.y = 3 * (eaten_ghost_anim.texture.height/4);
-                                      //eaten_ghost_anim.rot = 90;
                                       DrawTexturePro(eaten_ghost_anim.texture, eaten_ghost_anim.source, eaten_ghost_anim.dest, eaten_ghost_anim.origin,  eaten_ghost_anim.rot, WHITE); 
                                   }break;
                     }
@@ -1052,19 +1155,15 @@ int main() {
                     if (scared_ghost_anim.current_frame > scared_ghost_anim.frames) scared_ghost_anim.current_frame = 0;
                     switch (ghosts[i]->curr_dir) {
                         case left:{
-                                      //scared_ghost_anim.rot = 180;
                                       DrawTexturePro(scared_ghost_anim.texture, scared_ghost_anim.source, scared_ghost_anim.dest, scared_ghost_anim.origin,  scared_ghost_anim.rot, WHITE); 
                                   }break;
                         case right:{
-                                       //scared_ghost_anim.rot = 0;
                                        DrawTexturePro(scared_ghost_anim.texture, scared_ghost_anim.source, scared_ghost_anim.dest, scared_ghost_anim.origin,  scared_ghost_anim.rot, WHITE); 
                                    }break;
                         case up:{
-                                    //scared_ghost_anim.rot = 270;
                                     DrawTexturePro(scared_ghost_anim.texture, scared_ghost_anim.source, scared_ghost_anim.dest, scared_ghost_anim.origin,  scared_ghost_anim.rot, WHITE); 
                                 }break;
                         case down:{
-                                      //scared_ghost_anim.rot = 90;
                                       DrawTexturePro(scared_ghost_anim.texture, scared_ghost_anim.source, scared_ghost_anim.dest, scared_ghost_anim.origin,  scared_ghost_anim.rot, WHITE); 
                                   }break;
                     }
@@ -1086,23 +1185,19 @@ int main() {
                     if (pg_anim.current_frame > pg_anim.frames) pg_anim.current_frame = 0;
                     switch (ghosts[i]->curr_dir) {
                         case left:{
-                                      //pg_anim.rot = 180;
                                       pg_anim.source.y = 1 * (pg_anim.texture.height/4);
                                       DrawTexturePro(pg_anim.texture, pg_anim.source, pg_anim.dest, pg_anim.origin,  pg_anim.rot, WHITE); 
                                   }break;
                         case right:{
                                        pg_anim.source.y = 0 * (pg_anim.texture.height/4);
-                                       //pg_anim.rot = 0;
                                        DrawTexturePro(pg_anim.texture, pg_anim.source, pg_anim.dest, pg_anim.origin,  pg_anim.rot, WHITE); 
                                    }break;
                         case up:{
                                     pg_anim.source.y = 2 * (pg_anim.texture.height/4);
-                                    //pg_anim.rot = 270;
                                     DrawTexturePro(pg_anim.texture, pg_anim.source, pg_anim.dest, pg_anim.origin,  pg_anim.rot, WHITE); 
                                 }break;
                         case down:{
                                       pg_anim.source.y = 3 * (pg_anim.texture.height/4);
-                                      //pg_anim.rot = 90;
                                       DrawTexturePro(pg_anim.texture, pg_anim.source, pg_anim.dest, pg_anim.origin,  pg_anim.rot, WHITE); 
                                   }break;
                     }
@@ -1126,23 +1221,19 @@ int main() {
                     if (eaten_ghost_anim.current_frame > eaten_ghost_anim.frames) eaten_ghost_anim.current_frame = 0;
                     switch (ghosts[i]->curr_dir) {
                         case left:{
-                                      //eaten_ghost_anim.rot = 180;
                                       eaten_ghost_anim.source.y = 1 * (eaten_ghost_anim.texture.height/4);
                                       DrawTexturePro(eaten_ghost_anim.texture, eaten_ghost_anim.source, eaten_ghost_anim.dest, eaten_ghost_anim.origin,  eaten_ghost_anim.rot, WHITE); 
                                   }break;
                         case right:{
                                        eaten_ghost_anim.source.y = 0 * (eaten_ghost_anim.texture.height/4);
-                                       //eaten_ghost_anim.rot = 0;
                                        DrawTexturePro(eaten_ghost_anim.texture, eaten_ghost_anim.source, eaten_ghost_anim.dest, eaten_ghost_anim.origin,  eaten_ghost_anim.rot, WHITE); 
                                    }break;
                         case up:{
                                     eaten_ghost_anim.source.y = 2 * (eaten_ghost_anim.texture.height/4);
-                                    //eaten_ghost_anim.rot = 270;
                                     DrawTexturePro(eaten_ghost_anim.texture, eaten_ghost_anim.source, eaten_ghost_anim.dest, eaten_ghost_anim.origin,  eaten_ghost_anim.rot, WHITE); 
                                 }break;
                         case down:{
                                       eaten_ghost_anim.source.y = 3 * (eaten_ghost_anim.texture.height/4);
-                                      //eaten_ghost_anim.rot = 90;
                                       DrawTexturePro(eaten_ghost_anim.texture, eaten_ghost_anim.source, eaten_ghost_anim.dest, eaten_ghost_anim.origin,  eaten_ghost_anim.rot, WHITE); 
                                   }break;
                     }
@@ -1165,19 +1256,15 @@ int main() {
                     if (scared_ghost_anim.current_frame > scared_ghost_anim.frames) scared_ghost_anim.current_frame = 0;
                     switch (ghosts[i]->curr_dir) {
                         case left:{
-                                      //scared_ghost_anim.rot = 180;
                                       DrawTexturePro(scared_ghost_anim.texture, scared_ghost_anim.source, scared_ghost_anim.dest, scared_ghost_anim.origin,  scared_ghost_anim.rot, WHITE); 
                                   }break;
                         case right:{
-                                       //scared_ghost_anim.rot = 0;
                                        DrawTexturePro(scared_ghost_anim.texture, scared_ghost_anim.source, scared_ghost_anim.dest, scared_ghost_anim.origin,  scared_ghost_anim.rot, WHITE); 
                                    }break;
                         case up:{
-                                    //scared_ghost_anim.rot = 270;
                                     DrawTexturePro(scared_ghost_anim.texture, scared_ghost_anim.source, scared_ghost_anim.dest, scared_ghost_anim.origin,  scared_ghost_anim.rot, WHITE); 
                                 }break;
                         case down:{
-                                      //scared_ghost_anim.rot = 90;
                                       DrawTexturePro(scared_ghost_anim.texture, scared_ghost_anim.source, scared_ghost_anim.dest, scared_ghost_anim.origin,  scared_ghost_anim.rot, WHITE); 
                                   }break;
                     }
@@ -1199,23 +1286,19 @@ int main() {
                     if (bg_anim.current_frame > bg_anim.frames) bg_anim.current_frame = 0;
                     switch (ghosts[i]->curr_dir) {
                         case left:{
-                                      //bg_anim.rot = 180;
                                       bg_anim.source.y = 1 * (bg_anim.texture.height/4);
                                       DrawTexturePro(bg_anim.texture, bg_anim.source, bg_anim.dest, bg_anim.origin,  bg_anim.rot, WHITE); 
                                   }break;
                         case right:{
                                        bg_anim.source.y = 0 * (bg_anim.texture.height/4);
-                                       //bg_anim.rot = 0;
                                        DrawTexturePro(bg_anim.texture, bg_anim.source, bg_anim.dest, bg_anim.origin,  bg_anim.rot, WHITE); 
                                    }break;
                         case up:{
                                     bg_anim.source.y = 2 * (bg_anim.texture.height/4);
-                                    //bg_anim.rot = 270;
                                     DrawTexturePro(bg_anim.texture, bg_anim.source, bg_anim.dest, bg_anim.origin,  bg_anim.rot, WHITE); 
                                 }break;
                         case down:{
                                       bg_anim.source.y = 3 * (bg_anim.texture.height/4);
-                                      //bg_anim.rot = 90;
                                       DrawTexturePro(bg_anim.texture, bg_anim.source, bg_anim.dest, bg_anim.origin,  bg_anim.rot, WHITE); 
                                   }break;
                     }
@@ -1304,23 +1387,19 @@ int main() {
                     if (og_anim.current_frame > og_anim.frames) og_anim.current_frame = 0;
                     switch (ghosts[i]->curr_dir) {
                         case left:{
-                                      //og_anim.rot = 180;
                                       og_anim.source.y = 1 * (og_anim.texture.height/4);
                                       DrawTexturePro(og_anim.texture, og_anim.source, og_anim.dest, og_anim.origin,  og_anim.rot, WHITE); 
                                   }break;
                         case right:{
                                        og_anim.source.y = 0 * (og_anim.texture.height/4);
-                                       //og_anim.rot = 0;
                                        DrawTexturePro(og_anim.texture, og_anim.source, og_anim.dest, og_anim.origin,  og_anim.rot, WHITE); 
                                    }break;
                         case up:{
                                     og_anim.source.y = 2 * (og_anim.texture.height/4);
-                                    //og_anim.rot = 270;
                                     DrawTexturePro(og_anim.texture, og_anim.source, og_anim.dest, og_anim.origin,  og_anim.rot, WHITE); 
                                 }break;
                         case down:{
                                       og_anim.source.y = 3 * (og_anim.texture.height/4);
-                                      //og_anim.rot = 90;
                                       DrawTexturePro(og_anim.texture, og_anim.source, og_anim.dest, og_anim.origin,  og_anim.rot, WHITE); 
                                   }break;
                     }
@@ -1337,8 +1416,13 @@ int main() {
 
         pacman_anim.source.x = pacman_anim.current_frame * (pacman_anim.texture.width/pacman_anim.frames);
         if ( (pacman_anim.timer.start_time + pacman_anim.timer.len) < current_time) {
+
             pacman_anim.timer.start_time = current_time;
-            ++pacman_anim.current_frame;
+            if (!wanted_dir_check(pacman_cell.x, pacman_cell.y, pacman_wanted_dir) && pacman_wanted_dir == pacman_curr_dir) {
+            }
+            else {
+                ++pacman_anim.current_frame;
+            }
         }
 
         if (pacman_anim.current_frame > pacman_anim.frames) pacman_anim.current_frame = 0;
@@ -1356,8 +1440,89 @@ int main() {
                           pacman_anim.rot = 90;
                       }break;
         }
-        DrawTexturePro(pacman_anim.texture, pacman_anim.source, pacman_anim.dest, pacman_anim.origin,  pacman_anim.rot, YELLOW); 
 
+        if (! pacman_invincible) {
+            DrawTexturePro(pacman_anim.texture, pacman_anim.source, pacman_anim.dest, pacman_anim.origin,  pacman_anim.rot, YELLOW); 
+        }
+        else {
+            DrawText("200", pacman_pos.x, pacman_pos.y,  20, BLUE);
+        }
+        for (int i = 0; i <pacman_lives_remain; ++i) {
+            int live_x = cell_width * i;
+            DrawCircle(live_x + cell_width/2, 35 *  cell_height, cell_width/2.4, YELLOW);                              
+
+        }
+        if (pelletes_remaining == 0) {
+            pelletes_remaining = 240;
+
+                    pacman_pos.x = 14 * cell_width;
+                    pacman_pos.y = 26 * cell_height;
+                    pacman_cell.x = pacman_pos.x/cell_width;
+                    pacman_cell.y = pacman_pos.y/cell_height;
+                    pacman_wanted_dir = right;
+                    pacman_curr_dir   = right;
+
+                    red_ghost.pos.x = 14 * cell_width;
+                    red_ghost.pos.y = 14 * cell_height;
+                    red_ghost.cell.x = red_ghost.pos.x/cell_width;
+                    red_ghost.cell.y = red_ghost.pos.y/cell_height;
+                    red_ghost.wanted_dir = right;
+                    red_ghost.curr_dir   = right;
+                    red_ghost.spawn_wait_time = 0;
+                    red_ghost.mode = scatter; 
+                    red_ghost.color = RED;
+
+                    blue_ghost.pos.x = (12 * cell_width) - (cell_width/3);
+                    blue_ghost.pos.y = 17 * cell_height;
+                    blue_ghost.cell.x = blue_ghost.pos.x/cell_width;
+                    blue_ghost.cell.y = blue_ghost.pos.y/cell_height;
+                    blue_ghost.wanted_dir = right;
+                    blue_ghost.curr_dir   = right;
+                    blue_ghost.mode = spawn_wait;
+                    blue_ghost.color = BLUE;
+                    blue_ghost.spawn_wait_time = 15;
+                    blue_ghost.spawn_wait_time -= wait_time_diff;
+                    if (blue_ghost.spawn_wait_time < 0) blue_ghost.spawn_wait_time = 0;
+
+                    pink_ghost.pos.x = 14 * cell_width;
+                    pink_ghost.pos.y = 17 * cell_height;
+                    pink_ghost.cell.x = pink_ghost.pos.x/cell_width;
+                    pink_ghost.cell.y = pink_ghost.pos.y/cell_height;
+                    pink_ghost.wanted_dir = left;
+                    pink_ghost.curr_dir   = left;
+                    pink_ghost.mode = spawn_wait;
+                    pink_ghost.color = PINK;
+                    pink_ghost.spawn_wait_time = 30;
+                    pink_ghost.spawn_wait_time -= wait_time_diff;
+                    if (pink_ghost.spawn_wait_time < 0) pink_ghost.spawn_wait_time = 0;
+
+                    orange_ghost.pos.x = (16 * cell_width) - 3 ;
+                    orange_ghost.pos.y = 17 * cell_height;
+                    orange_ghost.cell.x = orange_ghost.pos.x/cell_width;
+                    orange_ghost.cell.y = orange_ghost.pos.y/cell_height;
+                    orange_ghost.wanted_dir = left;
+                    orange_ghost.curr_dir   = left;
+                    orange_ghost.mode = spawn_wait;
+                    orange_ghost.color = ORANGE;
+                    orange_ghost.spawn_wait_time = 45;
+                    orange_ghost.spawn_wait_time -= wait_time_diff;
+                    if (orange_ghost.spawn_wait_time < 0) orange_ghost.spawn_wait_time = 0;
+
+                    spawn_start = current_time;
+                    for (int row = 0; row < ROWS; ++row) {
+                        for (int col = 0; col < COLS; ++col) {
+                            map[row][col] = map_backup[row][col];
+                        }
+                    }
+                    wait_time_diff += 5;
+
+            ++level_count;
+        }
+        DrawText(TextFormat("Level %d", level_count), 0, 0,  50, BLUE);
+        if (pacman_lives_remain < 0) {
+            running  = false;
+            printf("you died on level %d\n", level_count);
+        }
         EndDrawing();
     }
 

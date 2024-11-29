@@ -76,6 +76,7 @@ V2int jail_cell = {
     .y = 14,
 };
 
+
 V2int spawn_exit_cell = {
     .x = 13,
     .y = 16,
@@ -164,10 +165,10 @@ void draw_grid() {
 }
 
 
-bool wanted_dir_check(int player_x_cell, int player_y_cell, Dir pacman_wanted_dir) {
+bool wanted_dir_check(int player_x_cell, int player_y_cell, Dir wanted_dir) {
     bool can_move = false;
 
-    switch (pacman_wanted_dir) {
+    switch (wanted_dir) {
         case left:{
                       if (map[player_y_cell][player_x_cell-1] !=3) can_move = true;
                   }break;
@@ -425,16 +426,6 @@ int main() {
     InitWindow(screen_width, screen_height, "pacman");
     SetTargetFPS(fps);
 
-    Vector2 pacman_pos = {0};
-    pacman_pos.x = 14 * cell_width;
-    pacman_pos.y = 26 * cell_height;
-    V2int  pacman_cell = {0};
-    pacman_cell.x = pacman_pos.x/cell_width;
-    pacman_cell.y = pacman_pos.y/cell_height;
-    Dir pacman_wanted_dir = right;
-    Dir pacman_curr_dir   = right;
-    float pacman_speed = 100;
-
     Texture2D background_texture = LoadTexture("./data/assets/bg.png");
     Rectangle background_source = {0};
     background_source.width = background_texture.width;
@@ -443,6 +434,16 @@ int main() {
     background_dest.width = screen_width;
     background_dest.height = screen_height;
 
+
+    Vector2 pacman_pos = {0};
+    pacman_pos.x = 14 * cell_width;
+    pacman_pos.y = 26 * cell_height;
+    V2int  pacman_cell = {0};
+    pacman_cell.x = pacman_pos.x/cell_width;
+    pacman_cell.y = pacman_pos.y/cell_height;
+    Dir pacman_wanted_dir = right;
+    Dir pacman_curr_dir   = right;
+    float pacman_speed = 130;
 
     Anim pacman_anim = {0};
     pacman_anim.texture = LoadTexture("./data/assets/pacman_eat.png");
@@ -457,6 +458,11 @@ int main() {
     pacman_anim.rot = 0;
     pacman_anim.timer.len = 0.07;
     pacman_anim.timer.start_time = GetTime();
+
+    bool pacman_invincible = false;
+    Timer pacman_pause_eat = {0};
+    pacman_pause_eat.start_time = -3;
+    pacman_pause_eat.len = 0.3;
 
     float chase_speed = 80;
     float scared_speed = 50;
@@ -567,7 +573,7 @@ int main() {
 
 
     Ghost blue_ghost = {0};
-    blue_ghost.pos.x = 12 * cell_width;
+    blue_ghost.pos.x = (12 * cell_width) - (cell_width/3);
     blue_ghost.pos.y = 17 * cell_height;
     blue_ghost.cell.x = blue_ghost.pos.x/cell_width;
     blue_ghost.cell.y = blue_ghost.pos.y/cell_height;
@@ -593,7 +599,7 @@ int main() {
     pink_ghost.spawn_wait_time = 2;
 
     Ghost orange_ghost = {0};
-    orange_ghost.pos.x = 16 * cell_width;
+    orange_ghost.pos.x = (16 * cell_width) - 3 ;
     orange_ghost.pos.y = 17 * cell_height;
     orange_ghost.cell.x = orange_ghost.pos.x/cell_width;
     orange_ghost.cell.y = orange_ghost.pos.y/cell_height;
@@ -694,7 +700,7 @@ int main() {
         }
         else if ( map[pacman_cell.y][pacman_cell.x] == 2 ) {
             for (int i = 0; i<GHOST_COUNT; ++i) {
-                flip_ghost_dir(ghosts[i]);
+                if (ghosts[i]->mode == scatter || ghosts[i]->mode == chase)  flip_ghost_dir(ghosts[i]);
                 map[pacman_cell.y][pacman_cell.x] = 0;
                 eat_timer.start_time = current_time;
                 if (ghosts[i]->mode == scatter || ghosts[i]->mode == chase)  ghosts[i]->mode = scared;
@@ -708,9 +714,10 @@ int main() {
             if (collision) {
                 if (ghosts[i]->mode == scared) {
                     ghosts[i]->mode = eaten;
+                    pacman_pause_eat.start_time = current_time;
                 }            
                 else {
-                    //RESET and  lose life
+                    //TODO RESET and  lose life
                 }
             }
 
@@ -796,7 +803,13 @@ int main() {
                 update_wanted_dir(ghosts[i]->curr_dir, &ghosts[i]->wanted_dir, ghosts[i]->cell, jail_cell);
                 ghosts[i]->color = RAYWHITE;
 
-                bool collision = ( ghosts[i]->cell.x == jail_cell.x && jail_cell.y == ghosts[i]->cell.y);
+                bool collision = false;
+                if (ghosts[i]->curr_dir == left && ghosts[i]->cell.y == jail_cell.y && ghosts[i]->pos.x < ((jail_cell.x *cell_width) + cell_width/1.6)) {
+                    collision = true;
+                }
+                else if (ghosts[i]->curr_dir == right && ghosts[i]->cell.y == jail_cell.y && ghosts[i]->pos.x > ((jail_cell.x *cell_width) + cell_width/2)) {
+                    collision = true;
+                }
                 if (collision) {
                     ghosts[i]->mode = jail_down;
                 }
@@ -809,23 +822,25 @@ int main() {
             else if (ghosts[i]->mode == spawn_exit) {
                 update_wanted_dir(ghosts[i]->curr_dir, &ghosts[i]->wanted_dir, ghosts[i]->cell, spawn_exit_cell);
                 if (i == orange) {
-                    if (ghosts[i]->pos.x < spawn_exit_cell.x * cell_width) {
+                    if (ghosts[i]->pos.x < ((spawn_exit_cell.x * cell_width) + cell_width/2)) {
                         ghosts[i]->cell.x = spawn_exit_cell.x;
-                        ghosts[i]->pos.x = spawn_exit_cell.x * cell_width;
+                        ghosts[i]->pos.x = (spawn_exit_cell.x * cell_width) + cell_width/2;
                         ghosts[i]->mode = jail_up;
                     }
                 }
                 else if (i == pink) {
-                    if (ghosts[i]->pos.x < spawn_exit_cell.x * cell_width) {
+                    if (ghosts[i]->pos.x < ((spawn_exit_cell.x * cell_width) + cell_width/2)) {
                         ghosts[i]->cell.x = spawn_exit_cell.x;
-                        ghosts[i]->pos.x = spawn_exit_cell.x * cell_width;
+                        ghosts[i]->pos.x = (spawn_exit_cell.x * cell_width) + cell_width/2;
                         ghosts[i]->mode = jail_up;
                     }
                 }
                 else if (i == blue) {
-                    if (ghosts[i]->pos.x > spawn_exit_cell.x * cell_width) {
+                    ghosts[i]->curr_dir = right;
+                    ghosts[i]->wanted_dir = right;
+                    if (ghosts[i]->pos.x > ((spawn_exit_cell.x * cell_width) + cell_width/2)) {
                         ghosts[i]->cell.x = spawn_exit_cell.x;
-                        ghosts[i]->pos.x = spawn_exit_cell.x * cell_width;
+                        ghosts[i]->pos.x = (spawn_exit_cell.x * cell_width) + cell_width/2;
                         ghosts[i]->mode = jail_up;
                     }
                 }
@@ -864,7 +879,14 @@ int main() {
         else if (IsKeyDown(KEY_DOWN)) {
             pacman_wanted_dir = down;
         }
-        move_player(&pacman_curr_dir, &pacman_wanted_dir, &pacman_pos, &pacman_cell, pacman_dp);
+
+        if (! ( (pacman_pause_eat.start_time + pacman_pause_eat.len) > current_time)) {
+            move_player(&pacman_curr_dir, &pacman_wanted_dir, &pacman_pos, &pacman_cell, pacman_dp);
+            pacman_invincible = false;
+        }
+        else {
+            pacman_invincible = true;
+        }
 
 
         for (int i = 0; i <GHOST_COUNT; ++i) {
